@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+
+<script type="text/javascript" src="http://static.robotwebtools.org/EaselJS/current/easeljs.min.js"></script>
+<script type="text/javascript" src="http://static.robotwebtools.org/EventEmitter2/current/eventemitter2.min.js"></script>
+<script type="text/javascript" src="http://static.robotwebtools.org/roslibjs/current/roslib.min.js"></script>
+<script type="text/javascript" src="http://static.robotwebtools.org/ros2djs/current/ros2d.min.js"></script>
+<script src="https://cdn.staticfile.org/jquery/1.10.2/jquery.min.js"></script>
+
+
+<style>
+  #wrapper {
+    position: relative;
+  }
+  canvas {
+    position: absolute;
+  }
+</style>
+</head>
+
+<body>
+  <div id="wrapper">
+    <div id="map" width="600" height="500"></div>
+    <canvas id="realCanvas" width="600" height="500"></canvas>
+  </div>
+
+<script type="text/javascript">
+
+    // Connect to ROS.
+    var ros = new ROSLIB.Ros({
+      // url : 'ws://47.112.96.50:9090'
+      url : 'ws://localhost:3001/echo'
+    });
+    
+    // Create the main viewer.
+    var viewer = new ROS2D.Viewer({
+      divID : 'map',
+      width : 600,
+      height : 500
+    });
+    
+    // Setup the map client.
+    var gridClient = new ROS2D.OccupancyGridClient({
+      ros : ros,
+      rootObject : viewer.scene
+    });
+    // Scale the canvas to fit to the map
+    gridClient.on('change', function(){
+      viewer.scaleToDimensions(gridClient.currentGrid.width, gridClient.currentGrid.height);
+    });
+    ros.on('connection', function() {
+        console.log('Connected to websocket server.');
+      });
+    
+    ros.on('error', function(error) {
+      console.log('Error connecting to websocket server: ', error);
+    });
+    
+    ros.on('close', function() {
+      console.log('Connection to websocket server closed.');
+    });
+
+
+</script>
+
+<script type="text/javascript">
+  //获取canvas
+  var can = document.getElementsByTagName('canvas');
+  can = can[1];
+  //画笔
+  var ctx = can.getContext("2d");
+  ctx.globalCompositeOperation = 'source-over';
+
+  var drawBoard = {
+    type: "painter",
+    isDraw: false,
+    beginX: 0,
+    beginY: 0,
+    lineWidth: 1, //设置画笔初始粗细
+    points: [],   //用来保存路径的点.格式为（x，y，z），其中z固定为0
+    //绘制路径
+    painterFunc: function(e) {
+      
+      //计算鼠标在画布的距离
+      var disX = e.clientX - can.offsetLeft;
+      var disY = e.clientY - can.offsetTop;
+      //画线
+      ctx.lineTo(disX, disY);
+      ctx.lineWidth = drawBoard.lineWidth; //设置画笔宽度
+      ctx.lineCap = 'round'; //角度圆滑
+      ctx.lineJoin = 'round'; //连接处设置圆滑
+      ctx.stroke();
+
+      var width = gridClient.currentGrid.width;    //地图的实际宽度，单位为m
+      var height = gridClient.currentGrid.height;  //地图的实际高度，单位为m
+      //将点存入到数组中
+      var point = [disX * width / viewer.width , height -  disY * height / viewer.height, 0];
+      drawBoard.points.push(point);
+    }
+  };
+
+  //监听鼠标按下事件
+  can.onmousedown = function(e) {
+    // 按下可以画
+    drawBoard.isDraw = true;
+    var x = e.clientX - can.offsetLeft;
+    var y = e.clientY - can.offsetTop;
+    drawBoard.beginX = x;
+    drawBoard.beginY = y;
+    ctx.moveTo(x, y);
+
+    //将点存入到数组中
+    var width = gridClient.currentGrid.width;    //地图的实际宽度，单位为m
+    var height = gridClient.currentGrid.height;  //地图的实际高度，单位为m
+    var point = [x * width / viewer.width , height - y * height / viewer.height, 0];
+    drawBoard.points.push(point);
+  }
+
+  //监听鼠标抬起事件
+  can.onmouseup = function() {
+    //抬起不可画
+    drawBoard.isDraw = false;
+    console.log("mouseup");
+    
+    // 将点集以topic形式发布出去
+
+    //构建topic
+    var mapPoints = new ROSLIB.Topic({
+      ros:ros,
+      name:"/mapPoints",
+      messageType:"nav_msgs/Path"
+    });
+
+
+    // 页面加载完毕到当前的时间间隔，单位为ms
+    var t1 = performance.now();
+    //页面加载完毕的时间，自1970.1.1开始，单位为ms
+    var t2 = performance.timing.navigationStart;
+
+    //构建消息头
+    var header_top = {
+      // seq: 0,
+      stamp:{
+        secs: Math.floor(t2 / 1000) + Math.floor(t1 / 1000),
+        // nsecs: Math.floor(t1 * 1000000) - Math.floor(t1 / 1000),
+        nanosecs:1,
+      },
+      frame_id:"/map"
+    }
+
+    //消息主体
+    var quaternions = calculateQuaternion(drawBoard.points);
+    var poseArray = [];
+    for (var i = 0; i < quaternions.length; ++i) {
+      var point = drawBoard.points[i];
+      var quaternion = quaternions[i];
+      var temp = {
+        header:{
+          stamp:header_top.stamp,
+          frame_id:"/map"
+        },
+        pose:{
+          position:{
+            x : point[0],
+            y : point[1],
+            z : point[2],
+          },
+          orientation:{
+            x : quaternion[1],
+            y : quaternion[2],
+            z : quaternion[3],
+            w : quaternion[0]
+          }
+        }
+      };
+      poseArray.push(temp);
+    }
+
+    //组装消息
+    var message = new ROSLIB.Message({
+      header:header_top,
+      poses:poseArray
+    });
+    mapPoints.publish(message);
+    console.log(message);
+  }
+  //鼠标移动事件
+  can.onmousemove = function(e) {
+    if (drawBoard.isDraw) {
+      drawBoard["painterFunc"](e);
+    }
+  };
+
+  //由于是二维机器人，pitch和roll都固定为0.由yawn(偏航)来计算各点处的四元数
+  function calculateQuaternion(array) {
+      var len = array.length;
+      // 存储所有点的quaternion值
+      var quaternions = [];
+      for(var i = 0; i < len - 1; ++i) {
+        var point1 = array[i];
+        var point2 = array[i + 1];
+        
+        // 两点的横坐标差，纵坐标差,以及距离
+        var dif_y = point2[1] - point1[1];
+        var dif_x = point2[0] - point1[0];
+        var dist = Math.sqrt(dif_x * dif_x + dif_y * dif_y);
+        //判断在一二象限，还是三四象限
+        var sign;
+        if (dif_y > 0) {
+          sign = 1;
+        } else if (dif_y == 0) {
+          if (dif_x > 0) {
+            sign = 1;
+          } else {
+            sign = -1;
+          }
+        } else {
+          sign = -1;
+        }
+
+        // 偏航角的cos值。（需要注意除0的问题！）
+        var cos_yawn;
+        if (dist == 0) {
+          cos_yawn = 0;
+        } else {
+          cos_yawn = (dif_x) / Math.sqrt(dif_x * dif_x + dif_y * dif_y);
+        }
+        // 根据cos_yawn计算四元数。pitch和roll固定为0，化简后，quaternion_w = cos(yawn/2); quaternion_z = sin(yawn/2);quaternion_x,y都为0
+        var quaternion_w = sign * Math.sqrt((1 + cos_yawn) / 2.0);
+        var quaternion_x = 0;
+        var quaternion_y = 0;
+        var quaternion_z = Math.sqrt((1 - cos_yawn) / 2.0);
+        var quaternion = [quaternion_w,quaternion_x,quaternion_y,quaternion_z];
+        quaternions.push(quaternion);
+      }
+      return quaternions;
+  }
+
+</script>
+</body>
+
+
+</html>
