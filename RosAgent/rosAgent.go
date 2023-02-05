@@ -9,6 +9,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/libp2p/go-reuseport"
 )
 
@@ -87,7 +88,7 @@ func (s *P2PHandler) P2PRead() {
 		fmt.Println("读取到的内容是:", body)
 
 		//将内容转发给ros_server
-		_, err = roshandler.RosConn.Write([]byte(body))
+		err = roshandler.RosConn.WriteMessage(websocket.TextMessage, []byte(body))
 		if err != nil {
 			panic("转发内容给ros_server失败:" + err.Error())
 		}
@@ -97,27 +98,20 @@ func (s *P2PHandler) P2PRead() {
 
 type RosHandler struct {
 	// 与ros_server的连接
-	RosConn net.Conn
+	RosConn *websocket.Conn
 }
 
 // 从ros_server读取数据
 func (s *RosHandler) rosRead() {
 	for {
-		buffer := make([]byte, 1024*1024)
-		n, err := s.RosConn.Read(buffer)
+		_, msg, err := s.RosConn.ReadMessage()
 		if err != nil {
-			if err.Error() == "EOF" {
-				fmt.Println("连接中断")
-				break
-			}
-			fmt.Println("读取失败", err.Error())
-			continue
+			return
 		}
-		body := string(buffer[:n])
-		fmt.Println("读取到的内容是:", body)
+		fmt.Println("ros_server发来内容:", string(msg))
 
 		// 将读取到的内容，回传给p2p节点
-		_, err = p2phandler.P2PConn.Write([]byte(body))
+		_, err = p2phandler.P2PConn.Write([]byte(msg))
 		if err != nil {
 			panic("消息转发给p2p节点失败" + err.Error())
 		}
@@ -127,9 +121,10 @@ func (s *RosHandler) rosRead() {
 
 func main() {
 	/*
-		与9090端口的ros_server建立连接
+		与9090端口的ros_server建立websocket连接
 	*/
-	rosConn, err := net.Dial("tcp", "127.0.0.1:9090")
+	dialer := websocket.Dialer{}
+	rosConn, _, err := dialer.Dial("ws:127.0.0.1:9090", nil)
 	if err != nil {
 		panic("连接ros_server失败" + err.Error())
 	}
