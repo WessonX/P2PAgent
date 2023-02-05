@@ -93,7 +93,7 @@ func (s *Handler) P2PRead() {
 
 		// 将读取到的内容，写回给浏览器
 
-		err = browserConn.WriteMessage(websocket.BinaryMessage, []byte(body))
+		err = browserConn.WriteMessage(websocket.TextMessage, []byte(body))
 		if err != nil {
 			panic("消息转发给浏览器失败:" + err.Error())
 		}
@@ -123,7 +123,7 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Print the message to the console
-		fmt.Printf("%s sent: %s\n", conn.RemoteAddr(), string(msg))
+		fmt.Println(">浏览器发来内容:", string(msg))
 
 		// 将消息转发给对端节点
 		if _, err := handler.P2PConn.Write([]byte(msg)); err != nil {

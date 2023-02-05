@@ -85,7 +85,7 @@ func (s *P2PHandler) P2PRead() {
 			continue
 		}
 		body := string(buffer[:n])
-		fmt.Println("读取到的内容是:", body)
+		fmt.Println("对端节点发来内容:", body)
 
 		//将内容转发给ros_server
 		err = roshandler.RosConn.WriteMessage(websocket.TextMessage, []byte(body))
