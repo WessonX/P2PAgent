@@ -119,27 +119,13 @@ func (s *RosHandler) rosRead() {
 		// 将读取到的内容，回传给p2p节点
 		_, err = p2phandler.P2PConn.Write([]byte(body))
 		if err != nil {
-			panic("转发内容给p2p节点失败" + err.Error())
+			panic("消息转发给p2p节点失败" + err.Error())
 		}
+		fmt.Println("消息转发给p2p节点成功")
 	}
 }
 
 func main() {
-	/*
-		与对端节点建立p2p连接
-	*/
-	// 指定本地端口
-	localPort := randPort(10000, 50000)
-	// 向 P2P 转发服务器注册自己的临时生成的公网 IP (请注意,Dial 这里拨号指定了自己临时生成的本地端口)
-	serverConn, err := reuseport.Dial("tcp", fmt.Sprintf(":%d", localPort), "47.112.96.50:3001")
-	if err != nil {
-		panic("请求远程服务器失败:" + err.Error())
-	}
-	fmt.Println("请求远程服务器成功...")
-	p2phandler = &P2PHandler{ServerConn: serverConn, LocalPort: int(localPort)}
-	p2phandler.WaitNotify()
-	time.Sleep(time.Hour)
-
 	/*
 		与9090端口的ros_server建立连接
 	*/
@@ -150,6 +136,23 @@ func main() {
 	fmt.Println("连接ros_server成功")
 	roshandler = &RosHandler{RosConn: rosConn}
 	go roshandler.rosRead()
+
+	/*
+		与对端节点建立p2p连接
+	*/
+
+	// 指定本地端口
+	localPort := randPort(10000, 50000)
+	// 向 P2P 转发服务器注册自己的临时生成的公网 IP (请注意,Dial 这里拨号指定了自己临时生成的本地端口)
+	serverConn, err := reuseport.Dial("tcp", fmt.Sprintf(":%d", localPort), "47.112.96.50:3001")
+	if err != nil {
+		panic("请求远程服务器失败:" + err.Error())
+	}
+	fmt.Println("请求远程服务器成功...")
+	p2phandler = &P2PHandler{ServerConn: serverConn, LocalPort: int(localPort)}
+	p2phandler.WaitNotify()
+
+	time.Sleep(time.Hour)
 
 }
 
