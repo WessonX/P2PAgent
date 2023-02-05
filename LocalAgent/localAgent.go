@@ -89,7 +89,7 @@ func (s *Handler) P2PRead() {
 			continue
 		}
 		body := string(buffer[:n])
-		fmt.Printf("读取到%d个字节,对端节点发来内容:%s", n, body)
+		fmt.Printf(">读取到%d个字节,对端节点发来内容:%s", n, body)
 
 		// 将读取到的内容，写回给浏览器
 
@@ -121,14 +121,16 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return
 		}
-		cnt := len(msg)
+		readCnt := len(msg)
 		// Print the message to the console
-		fmt.Printf(">读取到%d个字节,浏览器发来内容:%s", cnt, string(msg))
+		fmt.Printf(">读取到%d个字节,浏览器发来内容:%s", readCnt, string(msg))
 
 		// 将消息转发给对端节点
-		if _, err := handler.P2PConn.Write([]byte(msg)); err != nil {
+		writeCnt, err := handler.P2PConn.Write([]byte(msg))
+		if err != nil {
 			panic("消息转发给对端节点失败" + err.Error())
 		}
+		fmt.Println("消息转发给对端节点,大小:", writeCnt)
 
 	}
 }
