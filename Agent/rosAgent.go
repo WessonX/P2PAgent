@@ -7,18 +7,10 @@ import (
 	"math"
 	"math/big"
 	"net"
-	"net/http"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/libp2p/go-reuseport"
 )
-
-// 与对端节点建立p2p连接的handler
-var handler *Handler
-
-// 与浏览器建立的websocket连接
-var browserConn *websocket.Conn
 
 type Handler struct {
 	// 中继服务器的连接句柄
@@ -72,7 +64,7 @@ func (s *Handler) DailP2PAndSayHello(address, uid string) {
 	fmt.Println("P2P连接成功")
 	s.P2PConn = conn
 	go s.P2PRead()
-	// go s.P2PWrite()
+	go s.P2PWrite()
 }
 
 // P2PRead 读取 P2P 节点的数据
@@ -86,19 +78,12 @@ func (s *Handler) P2PRead() {
 				break
 			}
 			fmt.Println("读取失败", err.Error())
-			time.Sleep(time.Second)
 			continue
 		}
 		body := string(buffer[:n])
-		fmt.Println("对端节点发来内容:", body)
-
-		// 将读取到的内容，写回给浏览器
-
-		err = browserConn.WriteMessage(websocket.BinaryMessage, []byte(body))
-		if err != nil {
-			panic("response写回服务器失败:" + err.Error())
-		}
-		fmt.Println("对端节点发回的resp转发给浏览器...")
+		fmt.Println("读取到的内容是:", body)
+		fmt.Println("来自地址", s.P2PConn.RemoteAddr())
+		fmt.Println("=============")
 	}
 }
 
@@ -114,71 +99,17 @@ func (s *Handler) P2PWrite() {
 	}
 }
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024 * 1024,
-	WriteBufferSize: 1024 * 1024,
-}
-
-// 接受来自浏览器的请求，并返回rsp
-func httpHandler(w http.ResponseWriter, r *http.Request) {
-	conn, error := upgrader.Upgrade(w, r, nil) // error ignored for sake of simplicity
-	if error != nil {
-		panic("websocket请求建立失败:" + error.Error())
-	}
-	browserConn = conn
-
-	fmt.Println("websocket连接建立成功，对端地址：", conn.RemoteAddr())
-	for {
-		// Read message from browser
-		msgType, msg, err := conn.ReadMessage()
-		if err != nil {
-			return
-		}
-
-		// Print the message to the console
-		fmt.Printf("%s sent: %s\n", conn.RemoteAddr(), string(msg))
-
-		// 将消息转发给对端节点
-		if _, err := handler.P2PConn.Write([]byte(msg)); err != nil {
-			fmt.Println("客户端写入错误")
-		}
-		fmt.Println("msgType:", msgType)
-		// // Write message back to browser
-		// if err = conn.WriteMessage(msgType, msg); err != nil {
-		// 	return
-		// }
-	}
-}
-
 func main() {
-	/*
-		与对端节点建立p2p连接
-	*/
-
-	// 随机生成本地端口
+	// 指定本地端口
 	localPort := RandPort(10000, 50000)
-
-	// 向 P2P 转发服务器注册自己的临时生成的公网 IP (请注意,Dial 这里拨号指定了自己临时生成的本地端口。如果用net.Dial方法，使用的端口是随机分配的，就无法穿透了)
+	// 向 P2P 转发服务器注册自己的临时生成的公网 IP (请注意,Dial 这里拨号指定了自己临时生成的本地端口)
 	serverConn, err := reuseport.Dial("tcp", fmt.Sprintf(":%d", localPort), "47.112.96.50:3001")
 	if err != nil {
 		panic("请求远程服务器失败:" + err.Error())
 	}
 	fmt.Println("请求远程服务器成功...")
-	handler = &Handler{ServerConn: serverConn, LocalPort: int(localPort)}
-	// 等待服务器回传对端节点的地址，并发起连接
-	handler.WaitNotify()
-
-	/*
-		与浏览器建立webSocket连接
-	*/
-	fmt.Println("localAgent is listening on 3001")
-	http.HandleFunc("/echo", httpHandler)
-
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "go.html")
-	})
-	http.ListenAndServe(":3001", nil)
-
+	h := &Handler{ServerConn: serverConn, LocalPort: int(localPort)}
+	h.WaitNotify()
 	time.Sleep(time.Hour)
 }
 
