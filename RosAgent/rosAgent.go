@@ -74,7 +74,7 @@ func (s *P2PHandler) DailP2PAndSayHello(address, uid string) {
 // P2PRead 读取 P2P 节点的数据
 func (s *P2PHandler) P2PRead() {
 	for {
-		buffer := make([]byte, 1024*1024)
+		buffer := make([]byte, 1024*1024*1024)
 		n, err := s.P2PConn.Read(buffer)
 		if err != nil {
 			if err.Error() == "EOF" {
@@ -85,13 +85,15 @@ func (s *P2PHandler) P2PRead() {
 			continue
 		}
 		body := string(buffer[:n])
-		fmt.Println("对端节点发来内容:", body)
+		// fmt.Println("对端节点发来内容:", body)
+		fmt.Printf(">读取到%d个字节,对端节点发来内容：%s", n, body)
 
 		//将内容转发给ros_server
 		err = roshandler.RosConn.WriteMessage(websocket.TextMessage, []byte(body))
 		if err != nil {
 			panic("转发内容给ros_server失败:" + err.Error())
 		}
+		fmt.Println("消息转发给ros_server")
 
 	}
 }
@@ -108,14 +110,16 @@ func (s *RosHandler) rosRead() {
 		if err != nil {
 			return
 		}
-		fmt.Println("ros_server发来内容:", string(msg))
+		cnt := len(msg)
+		// fmt.Println("ros_server发来内容:", string(msg))
+		fmt.Printf(">读取到%d个字节,ros_server发来内容:%s", cnt, string(msg))
 
 		// 将读取到的内容，回传给p2p节点
-		_, err = p2phandler.P2PConn.Write([]byte(msg))
+		writeCnt, error := p2phandler.P2PConn.Write([]byte(msg))
 		if err != nil {
-			panic("消息转发给p2p节点失败" + err.Error())
+			panic("消息转发给对端节点失败" + error.Error())
 		}
-		fmt.Println("消息转发给p2p节点成功")
+		fmt.Println("消息转发给对端节点成功,大小:", writeCnt)
 	}
 }
 

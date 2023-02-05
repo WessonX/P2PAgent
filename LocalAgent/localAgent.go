@@ -78,7 +78,7 @@ func (s *Handler) DailP2PAndSayHello(address, uid string) {
 func (s *Handler) P2PRead() {
 	for {
 		// 1024 * 1024，1M的缓存上限。后续这个值可能要根据实际数据量提高调整
-		buffer := make([]byte, 1024*1024)
+		buffer := make([]byte, 1024*1024*1024)
 		n, err := s.P2PConn.Read(buffer)
 		if err != nil {
 			if err.Error() == "EOF" {
@@ -89,7 +89,7 @@ func (s *Handler) P2PRead() {
 			continue
 		}
 		body := string(buffer[:n])
-		fmt.Println("对端节点发来内容:", body)
+		fmt.Printf("读取到%d个字节,对端节点发来内容:%s", n, body)
 
 		// 将读取到的内容，写回给浏览器
 
@@ -102,8 +102,8 @@ func (s *Handler) P2PRead() {
 }
 
 var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024 * 1024,
-	WriteBufferSize: 1024 * 1024,
+	ReadBufferSize:  1024 * 1024 * 1024,
+	WriteBufferSize: 1024 * 1024 * 1024,
 }
 
 // 接受来自浏览器的请求，并返回rsp
@@ -121,9 +121,9 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return
 		}
-
+		cnt := len(msg)
 		// Print the message to the console
-		fmt.Println(">浏览器发来内容:", string(msg))
+		fmt.Printf(">读取到%d个字节,浏览器发来内容:%s", cnt, string(msg))
 
 		// 将消息转发给对端节点
 		if _, err := handler.P2PConn.Write([]byte(msg)); err != nil {
