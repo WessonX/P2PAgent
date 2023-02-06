@@ -144,7 +144,7 @@ func main() {
 	localPort := randPort(10000, 50000)
 
 	// 向 P2P 转发服务器注册自己的临时生成的公网 IP (请注意,Dial 这里拨号指定了自己临时生成的本地端口。如果用net.Dial方法，使用的端口是随机分配的，就无法穿透了)
-	serverConn, err := reuseport.Dial("udp", fmt.Sprintf(":%d", localPort), "47.112.96.50:3001")
+	serverConn, err := reuseport.Dial("tcp", fmt.Sprintf(":%d", localPort), "47.112.96.50:3001")
 	if err != nil {
 		panic("请求远程服务器失败:" + err.Error())
 	}
