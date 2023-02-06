@@ -57,7 +57,7 @@ func (s *P2PHandler) DailP2PAndSayHello(address, uid string) {
 		time.Sleep(time.Second)
 		conn, err = reuseport.Dial("tcp", fmt.Sprintf(":%d", s.LocalPort), address)
 		if err != nil {
-			fmt.Println("请求第", errCount, "次地址失败,用户地址:", address)
+			fmt.Println("请求第", errCount, "次地址失败,用户地址:", address, "error:", err.Error())
 			errCount++
 			continue
 		}
