@@ -60,7 +60,7 @@ func (server *Server) readUdp() {
 func main() {
 	addr := &net.UDPAddr{
 		IP:   net.ParseIP("127.0.0.1"),
-		Port: 3002,
+		Port: 3001,
 	}
 
 	conn, err := net.ListenUDP("udp", addr)

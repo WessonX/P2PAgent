@@ -29,17 +29,6 @@ type ServerConn struct {
 	LocalAddr *net.UDPAddr
 }
 
-// 与对端节点建立的连接
-type P2PConn struct {
-	PeerConn *net.UDPConn
-
-	// 对端节点的地址
-	RemoteAddr *net.UDPAddr
-
-	// 本地节点的地址
-	LocalAddr *net.UDPAddr
-}
-
 // 向中继服务器发送hello报文
 func (sc *ServerConn) sayHelloToServer() {
 	msg := "echo from client"
@@ -87,6 +76,17 @@ func (sconn *ServerConn) HolePucnh() {
 		LocalAddr:  sconn.LocalAddr,
 	}
 	p2pConn.dialP2P()
+}
+
+// 与对端节点建立的连接
+type P2PConn struct {
+	PeerConn *net.UDPConn
+
+	// 对端节点的地址
+	RemoteAddr *net.UDPAddr
+
+	// 本地节点的地址
+	LocalAddr *net.UDPAddr
 }
 
 // 建立p2p直连
@@ -192,8 +192,8 @@ func main() {
 
 	// 中继服务器地址
 	raddr := &net.UDPAddr{
-		IP:   net.ParseIP("127.0.0.1"),
-		Port: 3002,
+		IP:   net.ParseIP("47.112.96.50"),
+		Port: 3001,
 	}
 
 	conn, err := net.DialUDP("udp", laddr, raddr)
