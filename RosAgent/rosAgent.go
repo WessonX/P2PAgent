@@ -187,7 +187,7 @@ func main() {
 
 	// 本地地址
 	laddr := &net.UDPAddr{
-		IP:   net.ParseIP("127.0.0.1"),
+		IP:   net.IPv4zero,
 		Port: int(localPort),
 	}
 

@@ -59,7 +59,7 @@ func (server *Server) readUdp() {
 
 func main() {
 	addr := &net.UDPAddr{
-		IP:   net.ParseIP("127.0.0.1"),
+		IP:   net.IPv4zero,
 		Port: 3001,
 	}
 

@@ -44,7 +44,7 @@ func (sconn *ServerConn) HolePucnh() {
 	buffer := make([]byte, 1024)
 	n, err := sconn.udpConn.Read(buffer)
 	if err != nil {
-		fmt.Println("error while reading data")
+		panic("error while reading data:" + err.Error())
 	}
 	data := make(map[string]string)
 	if err = json.Unmarshal(buffer[:n], &data); err != nil {
@@ -186,7 +186,7 @@ func main() {
 
 	// 本地地址
 	laddr := &net.UDPAddr{
-		IP:   net.ParseIP("127.0.0.1"),
+		IP:   net.IPv4zero,
 		Port: int(localPort),
 	}
 
