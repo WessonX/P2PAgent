@@ -104,7 +104,6 @@ func (pconn *P2PConn) dialP2P() {
 		}
 		time.Sleep(time.Second)
 		p2pConn, err = net.DialUDP("udp", pconn.LocalAddr, pconn.RemoteAddr)
-		// p2pConn.Write([]byte("HandShake"))
 		if err != nil {
 			fmt.Println("请求第", retryCount, "次地址失败", "error:", err.Error())
 			retryCount++
@@ -118,7 +117,6 @@ func (pconn *P2PConn) dialP2P() {
 	pconn.PeerConn = p2pConn
 	fmt.Println("p2p直连成功")
 	go pconn.P2PRead()
-	// go pconn.P2PWrite()
 
 }
 
@@ -126,7 +124,7 @@ func (pconn *P2PConn) dialP2P() {
 func (pconn *P2PConn) P2PRead() {
 	for {
 		buffer := make([]byte, 1024*1024)
-		cnt, err := pconn.PeerConn.Read(buffer)
+		cnt, _, err := pconn.PeerConn.ReadFromUDP(buffer)
 		if err != nil {
 			panic("从对端节点读取数据失败" + err.Error())
 		}
