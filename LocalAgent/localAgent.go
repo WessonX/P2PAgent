@@ -133,6 +133,9 @@ func (pconn *P2PConn) P2PRead() {
 		msg := string(buffer)
 		fmt.Printf(">读取到%d个字节,对端节点发来内容:%s\n", cnt, msg)
 
+		if msg == "HandShake" {
+			continue
+		}
 		// 将读取到的内容，写回给浏览器
 		err = browserConn.WriteMessage(websocket.TextMessage, []byte(msg))
 		if err != nil {

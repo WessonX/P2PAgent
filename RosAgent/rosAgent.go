@@ -132,6 +132,9 @@ func (pconn *P2PConn) P2PRead() {
 		msg := string(buffer)
 		fmt.Printf(">读取到%d个字节,对端节点发来内容:%s\n", cnt, msg)
 
+		if msg == "HandShake" {
+			continue
+		}
 		//将内容转发给ros_server
 		err = roshandler.RosConn.WriteMessage(websocket.TextMessage, []byte(msg))
 		if err != nil {
