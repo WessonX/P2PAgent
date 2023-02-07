@@ -203,7 +203,7 @@ func main() {
 
 	// 中继服务器地址
 	raddr := &net.UDPAddr{
-		IP:   net.ParseIP("127.0.0.1"),
+		IP:   net.ParseIP("47.112.96.50"),
 		Port: 3001,
 	}
 
