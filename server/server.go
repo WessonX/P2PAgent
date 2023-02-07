@@ -4,76 +4,75 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"os"
 	"time"
 
 	"github.com/go-basic/uuid"
-	"github.com/libp2p/go-reuseport"
 )
 
-type Client struct {
-	UID     string
-	Conn    net.Conn
-	Address string
+type Server struct {
+	// 相当于udp的Socket描述符
+	udpConn *net.UDPConn
+	Addr    *net.UDPAddr
+	// 客户端地址池
+	ClientPool map[string]*net.UDPAddr
 }
 
-type Handler struct {
-	// 服务端句柄
-	Listener net.Listener
-	// 客户端句柄池
-	ClientPool map[string]*Client
-}
-
-func (s *Handler) Handle() {
-	for {
-		conn, err := s.Listener.Accept()
-		if err != nil {
-			fmt.Println("获取连接句柄失败", err.Error())
-			continue
-		}
-		id := uuid.New()
-		s.ClientPool[id] = &Client{
-			UID:     id,
-			Conn:    conn,
-			Address: conn.RemoteAddr().String(),
-		}
-		fmt.Println("一个客户端连接进去了,他的公网IP是", conn.RemoteAddr().String())
-		// 暂时只接受两个客户端,多余的不处理
-		if len(s.ClientPool) == 2 {
-			// 交换双方的公网地址
-			s.ExchangeAddress()
-			break
-		}
-	}
-}
-
-// ExchangeAddress 交换地址
-func (s *Handler) ExchangeAddress() {
-	for uid, client := range s.ClientPool {
-		for id, c := range s.ClientPool {
+func (server *Server) ExchangeAddress() {
+	for uid, address := range server.ClientPool {
+		for id, addr := range server.ClientPool {
 			// 自己不交换
 			if uid == id {
 				continue
 			}
 			var data = make(map[string]string)
-			data["dst_uid"] = client.UID     // 对方的 UID
-			data["address"] = client.Address // 对方的公网地址
+			data["address"] = address.String() // 对方的公网地址
 			body, _ := json.Marshal(data)
-			if _, err := c.Conn.Write(body); err != nil {
-				fmt.Println("交换地址时出现了错误", err.Error())
+			_, err := server.udpConn.WriteToUDP([]byte(body), addr)
+			if err != nil {
+				panic("交换地址失败:" + err.Error())
 			}
 		}
 	}
 }
 
-func main() {
-	address := fmt.Sprintf("0.0.0.0:3001")
-	listener, err := reuseport.Listen("tcp", address)
-	if err != nil {
-		panic("服务端监听失败" + err.Error())
+func (server *Server) readUdp() {
+	for {
+		data := make([]byte, 1024)
+		_, remoteAddr, err := server.udpConn.ReadFromUDP(data)
+		if err != nil {
+			fmt.Println("error while reading data")
+		}
+		server.Addr = remoteAddr
+		id := uuid.New()
+		server.ClientPool[id] = remoteAddr
+		fmt.Println("一个客户端连接进来了,它的公网ip是:", remoteAddr.String())
+		// 暂时只接受两个客户端,多余的不处理
+		if len(server.ClientPool) == 2 {
+			// 交换双方的公网地址
+			server.ExchangeAddress()
+			break
+		}
 	}
-	fmt.Println("服务器开始监听...")
-	h := &Handler{Listener: listener, ClientPool: make(map[string]*Client)}
-	// 监听内网节点连接,交换彼此的公网 IP 和端口
-	h.Handle()
-	time.Sleep(time.Hour) // 防止主线程退出
+
+}
+
+func main() {
+	addr := &net.UDPAddr{
+		IP:   net.ParseIP("127.0.0.1"),
+		Port: 3002,
+	}
+
+	conn, err := net.ListenUDP("udp", addr)
+	if err != nil {
+		fmt.Println("connection error")
+		os.Exit(1)
+	}
+	fmt.Println("服务端开始监听...")
+	h := &Server{udpConn: conn, ClientPool: make(map[string]*net.UDPAddr)}
+
+	go h.readUdp()
+	defer conn.Close()
+	time.Sleep(time.Hour) //防止主线程退出
+
 }

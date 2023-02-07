@@ -7,94 +7,138 @@ import (
 	"math"
 	"math/big"
 	"net"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/libp2p/go-reuseport"
 )
 
-var p2phandler *P2PHandler
+// 与ros_server的连接句柄
 var roshandler *RosHandler
 
-// p2p连接的结构体
-type P2PHandler struct {
-	// 中继服务器的连接句柄
-	ServerConn net.Conn
-	// p2p 连接
-	P2PConn net.Conn
-	// 端口复用
-	LocalPort int
+// 与对端节点建立的p2p连接句柄
+var p2pConn *P2PConn
+
+// 与中继服务器建立的连接
+type ServerConn struct {
+	udpConn *net.UDPConn
+
+	// 本地节点的地址
+	LocalAddr *net.UDPAddr
 }
 
-// WaitNotify 等待远程服务器发送通知告知我们另一个用户的公网IP
-func (s *P2PHandler) WaitNotify() {
-	buffer := make([]byte, 1024)
-	n, err := s.ServerConn.Read(buffer)
+// 向中继服务器发送hello报文
+func (sc *ServerConn) sayHelloToServer() {
+	msg := "echo from client"
+	_, err := sc.udpConn.Write([]byte(msg))
 	if err != nil {
-		panic("从服务器获取用户地址失败" + err.Error())
+		panic("向服务器发送echo报文失败" + err.Error())
+	}
+	fmt.Println("成功向服务器发送echo报文...")
+}
+
+// 读取服务器回传的对端节点的地址
+func (sconn *ServerConn) HolePucnh() {
+	buffer := make([]byte, 1024)
+	n, err := sconn.udpConn.Read(buffer)
+	if err != nil {
+		fmt.Println("error while reading data")
 	}
 	data := make(map[string]string)
-	if err := json.Unmarshal(buffer[:n], &data); err != nil {
-		panic("获取用户信息失败" + err.Error())
+	if err = json.Unmarshal(buffer[:n], &data); err != nil {
+		panic("获取对端节点地址失败" + err.Error())
 	}
-	fmt.Println("客户端获取到了对方的地址:", data["address"])
-	// 断开服务器连接
-	defer s.ServerConn.Close()
-	// 请求用户的临时公网IP 以及uid
-	go s.DailP2PAndSayHello(data["address"], data["dst_uid"])
+	// 断开与中继服务器的连接
+	sconn.udpConn.Close()
+
+	fmt.Println("对端节点的地址:", data["address"])
+
+	// 解析对端节点的地址
+	address := data["address"]
+	idx := strings.Index(address, ":")
+	ip_part := address[:idx]
+	port_part, err := strconv.Atoi(address[idx+1:])
+	if err != nil {
+		panic("地址解析错误" + err.Error())
+	}
+
+	// 构建对端节点的地址
+	remote_Addr := &net.UDPAddr{
+		IP:   net.ParseIP(ip_part),
+		Port: port_part,
+	}
+
+	// 构建p2p连接结构体
+	p2pConn = &P2PConn{
+		RemoteAddr: remote_Addr,
+		LocalAddr:  sconn.LocalAddr,
+	}
+	p2pConn.dialP2P()
 }
 
-// DailP2PAndSayHello 连接对方临时的公网地址,并且不停的发送数据
-func (s *P2PHandler) DailP2PAndSayHello(address, uid string) {
-	var errCount = 1
-	var conn net.Conn
+// 与对端节点建立的连接
+type P2PConn struct {
+	PeerConn *net.UDPConn
+
+	// 对端节点的地址
+	RemoteAddr *net.UDPAddr
+
+	// 本地节点的地址
+	LocalAddr *net.UDPAddr
+}
+
+// 建立p2p直连
+func (pconn *P2PConn) dialP2P() {
+	// 重试次数
+	var retryCount = 1
+
+	// p2p连接
+	var p2pConn *net.UDPConn
+
 	var err error
+
 	for {
-		// 重试三次
-		if errCount > 3 {
+		if retryCount > 3 {
 			break
 		}
 		time.Sleep(time.Second)
-		conn, err = reuseport.Dial("udp", fmt.Sprintf(":%d", s.LocalPort), address)
+		p2pConn, err = net.DialUDP("udp", pconn.LocalAddr, pconn.RemoteAddr)
+		// p2pConn.Write([]byte("HandShake"))
 		if err != nil {
-			fmt.Println("请求第", errCount, "次地址失败,用户地址:", address, "error:", err.Error())
-			errCount++
+			fmt.Println("请求第", retryCount, "次地址失败", "error:", err.Error())
+			retryCount++
 			continue
 		}
 		break
 	}
-	if errCount > 3 {
+	if retryCount > 3 {
 		panic("客户端连接失败")
 	}
-	fmt.Println("P2P连接成功")
-	s.P2PConn = conn
-	go s.P2PRead()
+	pconn.PeerConn = p2pConn
+	fmt.Println("p2p直连成功")
+	go pconn.P2PRead()
+	// go pconn.P2PWrite()
+
 }
 
-// P2PRead 读取 P2P 节点的数据
-func (s *P2PHandler) P2PRead() {
+// 从对端节点读取数据
+func (pconn *P2PConn) P2PRead() {
 	for {
-		buffer := make([]byte, 1024*1024*1024)
-		n, err := s.P2PConn.Read(buffer)
+		buffer := make([]byte, 1024*1024)
+		cnt, err := pconn.PeerConn.Read(buffer)
 		if err != nil {
-			if err.Error() == "EOF" {
-				fmt.Println("连接中断")
-				break
-			}
-			fmt.Println("读取失败", err.Error())
-			continue
+			panic("从对端节点读取数据失败" + err.Error())
 		}
-		body := string(buffer[:n])
-		// fmt.Println("对端节点发来内容:", body)
-		fmt.Printf(">读取到%d个字节,对端节点发来内容：%s", n, body)
+		msg := string(buffer)
+		fmt.Printf(">读取到%d个字节,对端节点发来内容:%s\n", cnt, msg)
 
 		//将内容转发给ros_server
-		err = roshandler.RosConn.WriteMessage(websocket.TextMessage, []byte(body))
+		err = roshandler.RosConn.WriteMessage(websocket.TextMessage, []byte(msg))
 		if err != nil {
 			panic("转发内容给ros_server失败:" + err.Error())
 		}
 		fmt.Println("消息转发给ros_server")
-
 	}
 }
 
@@ -111,19 +155,18 @@ func (s *RosHandler) rosRead() {
 			return
 		}
 		cnt := len(msg)
-		// fmt.Println("ros_server发来内容:", string(msg))
-		fmt.Printf(">读取到%d个字节,ros_server发来内容:%s", cnt, string(msg))
+		fmt.Printf(">读取到%d个字节,ros_server发来内容:%s\n", cnt, string(msg))
 
 		// 将读取到的内容，回传给p2p节点
-		writeCnt, error := p2phandler.P2PConn.Write([]byte(msg))
+		writeCnt, error := p2pConn.PeerConn.Write([]byte(msg))
 		if err != nil {
 			panic("消息转发给对端节点失败" + error.Error())
 		}
-		fmt.Println("消息转发给对端节点成功,大小:", writeCnt)
+		fmt.Println(">消息转发给对端节点成功,大小:", writeCnt)
 	}
 }
-
 func main() {
+
 	/*
 		与9090端口的ros_server建立websocket连接
 	*/
@@ -139,20 +182,32 @@ func main() {
 	/*
 		与对端节点建立p2p连接
 	*/
-
-	// 指定本地端口
+	// 生成随机端口
 	localPort := randPort(10000, 50000)
-	// 向 P2P 转发服务器注册自己的临时生成的公网 IP (请注意,Dial 这里拨号指定了自己临时生成的本地端口)
-	serverConn, err := reuseport.Dial("tcp", fmt.Sprintf(":%d", localPort), "47.112.96.50:3001")
-	if err != nil {
-		panic("请求远程服务器失败:" + err.Error())
+
+	// 本地地址
+	laddr := &net.UDPAddr{
+		IP:   net.ParseIP("127.0.0.1"),
+		Port: int(localPort),
 	}
-	fmt.Println("请求远程服务器成功...")
-	p2phandler = &P2PHandler{ServerConn: serverConn, LocalPort: int(localPort)}
-	p2phandler.WaitNotify()
+
+	// 中继服务器地址
+	raddr := &net.UDPAddr{
+		IP:   net.ParseIP("47.112.96.50"),
+		Port: 3001,
+	}
+
+	conn, err := net.DialUDP("udp", laddr, raddr)
+	if err != nil {
+		fmt.Println("dial error")
+	}
+	fmt.Println("成功连接到服务器...")
+
+	sc := &ServerConn{udpConn: conn, LocalAddr: laddr}
+	sc.sayHelloToServer()
+	sc.HolePucnh()
 
 	time.Sleep(time.Hour)
-
 }
 
 // RandPort 生成区间范围内的随机端口
