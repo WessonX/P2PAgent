@@ -125,7 +125,7 @@ func (pconn *P2PConn) dialP2P() {
 func (pconn *P2PConn) P2PRead() {
 	for {
 		buffer := make([]byte, 1024*1024)
-		cnt, _, err := pconn.PeerConn.ReadFromUDP(buffer)
+		cnt, err := pconn.PeerConn.Read(buffer)
 		if err != nil {
 			panic("从对端节点读取数据失败" + err.Error())
 		}
