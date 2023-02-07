@@ -199,7 +199,7 @@ func main() {
 
 	conn, err := net.DialUDP("udp", laddr, raddr)
 	if err != nil {
-		fmt.Println("dial error")
+		panic("dial error:" + err.Error())
 	}
 	fmt.Println("成功连接到服务器...")
 
