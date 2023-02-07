@@ -104,6 +104,7 @@ func (pconn *P2PConn) dialP2P() {
 		}
 		time.Sleep(time.Second)
 		p2pConn, err = net.DialUDP("udp", pconn.LocalAddr, pconn.RemoteAddr)
+		p2pConn.Write([]byte("HandShake"))
 		if err != nil {
 			fmt.Println("请求第", retryCount, "次地址失败", "error:", err.Error())
 			retryCount++

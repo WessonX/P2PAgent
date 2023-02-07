@@ -105,6 +105,7 @@ func (pconn *P2PConn) dialP2P() {
 		}
 		time.Sleep(time.Second)
 		p2pConn, err = net.DialUDP("udp", pconn.LocalAddr, pconn.RemoteAddr)
+		p2pConn.Write([]byte("HandShake"))
 		if err != nil {
 			fmt.Println("请求第", retryCount, "次地址失败", "error:", err.Error())
 			retryCount++
@@ -138,6 +139,18 @@ func (pconn *P2PConn) P2PRead() {
 			panic("消息转发给浏览器失败:" + err.Error())
 		}
 		fmt.Println(">消息转发给浏览器成功")
+	}
+}
+
+func (pconn *P2PConn) P2PWrite() {
+	for {
+		var msg string
+		fmt.Scanln(&msg)
+		_, err := pconn.PeerConn.Write([]byte(msg))
+		if err != nil {
+			panic("消息转发给对端节点失败:" + err.Error())
+		}
+		fmt.Println("消息转发给对端节点成功")
 	}
 }
 
@@ -190,7 +203,7 @@ func main() {
 
 	// 中继服务器地址
 	raddr := &net.UDPAddr{
-		IP:   net.ParseIP("47.112.96.50"),
+		IP:   net.ParseIP("127.0.0.1"),
 		Port: 3001,
 	}
 
