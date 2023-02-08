@@ -203,7 +203,8 @@ func main() {
 		与对端节点建立p2p连接
 	*/
 	// 生成随机端口
-	localPort := randPort(10000, 50000)
+	// localPort := randPort(10000, 50000)
+	localPort := 3002
 
 	// 本地地址
 	laddr := &net.UDPAddr{

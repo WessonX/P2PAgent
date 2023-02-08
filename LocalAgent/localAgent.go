@@ -124,6 +124,8 @@ func (pconn *P2PConn) dialP2P() {
 	}
 	pconn.DialConn = dialConn
 	fmt.Println("p2p直连成功")
+	// 等待3s，确保rosagent端已经开始监听
+	time.Sleep(time.Second * 3)
 	go pconn.P2PRead()
 
 }
@@ -134,7 +136,8 @@ func (pconn *P2PConn) P2PRead() {
 		buffer := make([]byte, 1024*1024)
 		cnt, err := pconn.DialConn.Read(buffer)
 		if err != nil {
-			panic("从对端节点读取数据失败" + err.Error())
+			fmt.Println("从对端节点读取数据失败:", err.Error())
+			continue
 		}
 		msg := string(buffer)
 		fmt.Printf(">读取到%d个字节,对端节点发来内容:%s\n", cnt, msg)
@@ -202,7 +205,8 @@ func main() {
 		与对端节点建立p2p连接
 	*/
 	// 生成随机端口
-	localPort := randPort(10000, 50000)
+	// localPort := randPort(10000, 50000)
+	localPort := 3002
 
 	// 本地地址
 	laddr := &net.UDPAddr{
