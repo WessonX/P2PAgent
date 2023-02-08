@@ -42,7 +42,8 @@ func (sc *ServerConn) sayHelloToServer() {
 // 读取服务器回传的对端节点的地址
 func (sconn *ServerConn) HolePucnh() {
 	buffer := make([]byte, 1024)
-	n, err := sconn.udpConn.Read(buffer)
+	n, addr, err := sconn.udpConn.ReadFromUDP(buffer)
+	fmt.Println("addr:", addr.String())
 	if err != nil {
 		panic("error while reading data:" + err.Error())
 	}
@@ -117,16 +118,22 @@ func (pconn *P2PConn) dialP2P() {
 			retryCount++
 			continue
 		}
+		// 将打洞阶段的连接关闭
+		dialConn.Close()
 		break
 	}
 	if retryCount > 3 {
 		panic("客户端连接失败")
 	}
-	pconn.DialConn = dialConn
-	fmt.Println("p2p直连成功")
 	// 等待3s，确保rosagent端已经开始监听
 	time.Sleep(time.Second * 3)
+	pconn.DialConn, err = net.DialUDP("udp", pconn.LocalAddr, pconn.RemoteAddr)
+	if err != nil {
+		panic("建立p2p连接失败:" + err.Error())
+	}
+	fmt.Println("p2p直连成功")
 	go pconn.P2PRead()
+	go pconn.P2PWrite()
 
 }
 
@@ -134,7 +141,8 @@ func (pconn *P2PConn) dialP2P() {
 func (pconn *P2PConn) P2PRead() {
 	for {
 		buffer := make([]byte, 1024*1024)
-		cnt, err := pconn.DialConn.Read(buffer)
+		cnt, addr, err := pconn.DialConn.ReadFromUDP(buffer)
+		fmt.Println("对端地址是:", addr.String())
 		if err != nil {
 			fmt.Println("从对端节点读取数据失败:", err.Error())
 			continue

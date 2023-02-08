@@ -131,7 +131,10 @@ func (pconn *P2PConn) dialP2P() {
 	fmt.Println("p2p直连成功")
 
 	// 断开握手阶段建立的拨号连接，释放掉端口，供监听使用
-	dialConn.Close()
+	err = dialConn.Close()
+	if err != nil {
+		panic("关闭连接失败" + err.Error())
+	}
 	listenConn, err = net.ListenUDP("udp", pconn.LocalAddr)
 	if err != nil {
 		panic("监听p2p端口失败" + err.Error())
@@ -139,6 +142,7 @@ func (pconn *P2PConn) dialP2P() {
 	pconn.ListenConn = listenConn
 
 	go pconn.P2PRead()
+	go pconn.P2PWrite()
 
 }
 
@@ -162,6 +166,18 @@ func (pconn *P2PConn) P2PRead() {
 			panic("转发内容给ros_server失败:" + err.Error())
 		}
 		fmt.Println("消息转发给ros_server")
+	}
+}
+
+func (pconn *P2PConn) P2PWrite() {
+	for {
+		var msg string
+		fmt.Scanln(&msg)
+		_, err := pconn.DialConn.Write([]byte(msg))
+		if err != nil {
+			panic("消息转发给对端节点失败:" + err.Error())
+		}
+		fmt.Println("消息转发给对端节点成功")
 	}
 }
 
