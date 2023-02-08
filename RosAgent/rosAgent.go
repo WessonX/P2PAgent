@@ -105,24 +105,20 @@ func (pconn *P2PConn) dialP2P() {
 
 	var err error
 
-	// 在连接对方之前，应该先监听自己这边的端口
-	listenConn, err = net.ListenUDP("udp", pconn.LocalAddr)
-	if err != nil {
-		panic("监听p2p连接失败:" + err.Error())
-	}
-	pconn.ListenConn = listenConn
 	for {
 		if retryCount > 3 {
 			break
 		}
 		time.Sleep(time.Second)
 		dialConn, err = net.DialUDP("udp", pconn.LocalAddr, pconn.RemoteAddr)
+		if err != nil {
+			fmt.Println("请求第", retryCount, "次地址失败", "error:", err.Error())
+			retryCount++
+			continue
+		}
 		_, e := dialConn.Write([]byte("HandShake"))
 		if e != nil {
 			fmt.Println("发送握手请求失败:", e.Error())
-		}
-		if err != nil {
-			fmt.Println("请求第", retryCount, "次地址失败", "error:", err.Error())
 			retryCount++
 			continue
 		}
@@ -133,6 +129,12 @@ func (pconn *P2PConn) dialP2P() {
 	}
 	pconn.DialConn = dialConn
 	fmt.Println("p2p直连成功")
+
+	// 断开握手阶段建立的拨号连接，释放掉端口，供监听使用
+	dialConn.Close()
+	listenConn, err = net.ListenUDP("udp", pconn.LocalAddr)
+	pconn.ListenConn = listenConn
+
 	go pconn.P2PRead()
 
 }
@@ -176,7 +178,7 @@ func (s *RosHandler) rosRead() {
 		fmt.Printf(">读取到%d个字节,ros_server发来内容:%s\n", cnt, string(msg))
 
 		// 将读取到的内容，回传给p2p节点
-		writeCnt, error := p2pConn.DialConn.Write([]byte(msg))
+		writeCnt, error := p2pConn.ListenConn.WriteToUDP([]byte(msg), p2pConn.RemoteAddr)
 		if err != nil {
 			panic("消息转发给对端节点失败" + error.Error())
 		}

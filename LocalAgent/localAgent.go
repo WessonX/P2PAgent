@@ -83,9 +83,6 @@ type P2PConn struct {
 	// 给对端节点传数据
 	DialConn *net.UDPConn
 
-	// 从对端节点收数据
-	ListenConn *net.UDPConn
-
 	// 对端节点的地址
 	RemoteAddr *net.UDPAddr
 
@@ -101,29 +98,22 @@ func (pconn *P2PConn) dialP2P() {
 	// 发消息连接
 	var dialConn *net.UDPConn
 
-	// 收消息连接
-	var listenConn *net.UDPConn
-
 	var err error
 
-	// 在连接对方之前，应该先监听自己这边的端口
-	listenConn, err = net.ListenUDP("udp", pconn.LocalAddr)
-	if err != nil {
-		panic("监听p2p连接失败:" + err.Error())
-	}
-	pconn.ListenConn = listenConn
 	for {
 		if retryCount > 3 {
 			break
 		}
 		time.Sleep(time.Second)
 		dialConn, err = net.DialUDP("udp", pconn.LocalAddr, pconn.RemoteAddr)
+		if err != nil {
+			fmt.Println("请求第", retryCount, "次地址失败", "error:", err.Error())
+			retryCount++
+			continue
+		}
 		_, e := dialConn.Write([]byte("HandShake"))
 		if e != nil {
 			fmt.Println("发送握手请求失败:", e.Error())
-		}
-		if err != nil {
-			fmt.Println("请求第", retryCount, "次地址失败", "error:", err.Error())
 			retryCount++
 			continue
 		}
@@ -142,7 +132,7 @@ func (pconn *P2PConn) dialP2P() {
 func (pconn *P2PConn) P2PRead() {
 	for {
 		buffer := make([]byte, 1024*1024)
-		cnt, _, err := pconn.ListenConn.ReadFromUDP(buffer)
+		cnt, err := pconn.DialConn.Read(buffer)
 		if err != nil {
 			panic("从对端节点读取数据失败" + err.Error())
 		}
