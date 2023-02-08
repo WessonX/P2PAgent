@@ -173,7 +173,7 @@ func (pconn *P2PConn) P2PWrite() {
 	for {
 		var msg string
 		fmt.Scanln(&msg)
-		_, err := pconn.DialConn.Write([]byte(msg))
+		_, err := pconn.ListenConn.WriteToUDP([]byte(msg), pconn.RemoteAddr)
 		if err != nil {
 			panic("消息转发给对端节点失败:" + err.Error())
 		}
