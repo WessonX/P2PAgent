@@ -112,7 +112,7 @@ func (pconn *P2PConn) dialP2P() {
 			retryCount++
 			continue
 		}
-		_, e := dialConn.Write([]byte("HandShake"))
+		_, e := dialConn.WriteToUDP([]byte("HandShake"), pconn.RemoteAddr)
 		if e != nil {
 			fmt.Println("发送握手请求失败:", e.Error())
 			retryCount++
