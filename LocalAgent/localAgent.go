@@ -80,7 +80,11 @@ func (sconn *ServerConn) HolePucnh() {
 
 // 与对端节点建立的连接
 type P2PConn struct {
-	PeerConn *net.UDPConn
+	// 给对端节点传数据
+	DialConn *net.UDPConn
+
+	// 从对端节点收数据
+	ListenConn *net.UDPConn
 
 	// 对端节点的地址
 	RemoteAddr *net.UDPAddr
@@ -94,18 +98,27 @@ func (pconn *P2PConn) dialP2P() {
 	// 重试次数
 	var retryCount = 1
 
-	// p2p连接
-	var p2pConn *net.UDPConn
+	// 发消息连接
+	var dialConn *net.UDPConn
+
+	// 收消息连接
+	var listenConn *net.UDPConn
 
 	var err error
 
+	// 在连接对方之前，应该先监听自己这边的端口
+	listenConn, err = net.ListenUDP("udp", pconn.LocalAddr)
+	if err != nil {
+		panic("监听p2p连接失败:" + err.Error())
+	}
+	pconn.ListenConn = listenConn
 	for {
 		if retryCount > 3 {
 			break
 		}
 		time.Sleep(time.Second)
-		p2pConn, err = net.DialUDP("udp", pconn.LocalAddr, pconn.RemoteAddr)
-		p2pConn.Write([]byte("HandShake"))
+		dialConn, err = net.DialUDP("udp", pconn.LocalAddr, pconn.RemoteAddr)
+		dialConn.Write([]byte("HandShake"))
 		if err != nil {
 			fmt.Println("请求第", retryCount, "次地址失败", "error:", err.Error())
 			retryCount++
@@ -116,7 +129,7 @@ func (pconn *P2PConn) dialP2P() {
 	if retryCount > 3 {
 		panic("客户端连接失败")
 	}
-	pconn.PeerConn = p2pConn
+	pconn.DialConn = dialConn
 	fmt.Println("p2p直连成功")
 	go pconn.P2PRead()
 
@@ -126,7 +139,7 @@ func (pconn *P2PConn) dialP2P() {
 func (pconn *P2PConn) P2PRead() {
 	for {
 		buffer := make([]byte, 1024*1024)
-		cnt, err := pconn.PeerConn.Read(buffer)
+		cnt, _, err := pconn.ListenConn.ReadFromUDP(buffer)
 		if err != nil {
 			panic("从对端节点读取数据失败" + err.Error())
 		}
@@ -149,7 +162,7 @@ func (pconn *P2PConn) P2PWrite() {
 	for {
 		var msg string
 		fmt.Scanln(&msg)
-		_, err := pconn.PeerConn.Write([]byte(msg))
+		_, err := pconn.DialConn.Write([]byte(msg))
 		if err != nil {
 			panic("消息转发给对端节点失败:" + err.Error())
 		}
@@ -182,7 +195,7 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf(">读取到%d个字节,浏览器发来内容:%s\n", readCnt, string(msg))
 
 		// 将消息转发给对端节点
-		writeCnt, err := p2pConn.PeerConn.Write([]byte(msg))
+		writeCnt, err := p2pConn.DialConn.Write([]byte(msg))
 		if err != nil {
 			panic("消息转发给对端节点失败" + err.Error())
 		}
