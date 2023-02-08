@@ -133,6 +133,9 @@ func (pconn *P2PConn) dialP2P() {
 	// 断开握手阶段建立的拨号连接，释放掉端口，供监听使用
 	dialConn.Close()
 	listenConn, err = net.ListenUDP("udp", pconn.LocalAddr)
+	if err != nil {
+		panic("监听p2p端口失败" + err.Error())
+	}
 	pconn.ListenConn = listenConn
 
 	go pconn.P2PRead()
