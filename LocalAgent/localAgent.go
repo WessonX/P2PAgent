@@ -24,9 +24,12 @@ type Handler struct {
 	// 中继服务器的连接句柄
 	ServerConn net.Conn
 	// p2p 连接
-	P2PConn net.Conn
+	P2PConn net.PacketConn
 	// 端口复用
 	LocalPort int
+
+	// 远端地址
+	Addr *net.UDPAddr
 }
 
 // 向中继服务器发送报文失败
@@ -58,17 +61,24 @@ func (s *Handler) WaitNotify() {
 // DailP2PAndSayHello 连接对方临时的公网地址,并且不停的发送数据
 func (s *Handler) DailP2PAndSayHello(address, uid string) {
 	var errCount = 1
-	var conn net.Conn
+	var conn net.PacketConn
 	var err error
+	conn, err = reuseport.ListenPacket("udp", address)
+	addr, _ := net.ResolveUDPAddr("udp", address)
+	fmt.Println("远端地址为:", addr)
+	s.Addr = addr
+	if err != nil {
+		panic("监听对端节点失败:" + err.Error())
+	}
 	for {
 		// 重试三次
 		if errCount > 3 {
 			break
 		}
 		time.Sleep(time.Second)
-		conn, err = reuseport.Dial("udp", fmt.Sprintf(":%d", s.LocalPort), address)
+		_, err = conn.WriteTo([]byte("hello"), addr)
 		if err != nil {
-			fmt.Println("请求第", errCount, "次地址失败,用户地址:", address, "error:", err.Error())
+			fmt.Println("发送打洞消息失败", err.Error())
 			errCount++
 			continue
 		}
@@ -87,7 +97,7 @@ func (s *Handler) P2PRead() {
 	for {
 		// 1024 * 1024，1M的缓存上限。后续这个值可能要根据实际数据量提高调整
 		buffer := make([]byte, 1024*1024*1024)
-		n, err := s.P2PConn.Read(buffer)
+		n, _, err := s.P2PConn.ReadFrom(buffer)
 		if err != nil {
 			if err.Error() == "EOF" {
 				fmt.Println("连接中断")
@@ -134,7 +144,7 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf(">读取到%d个字节,浏览器发来内容:%s", readCnt, string(msg))
 
 		// 将消息转发给对端节点
-		writeCnt, err := handler.P2PConn.Write([]byte(msg))
+		writeCnt, err := handler.P2PConn.WriteTo([]byte(msg), handler.Addr)
 		if err != nil {
 			panic("消息转发给对端节点失败" + err.Error())
 		}

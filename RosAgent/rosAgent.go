@@ -21,9 +21,12 @@ type P2PHandler struct {
 	// 中继服务器的连接句柄
 	ServerConn net.Conn
 	// p2p 连接
-	P2PConn net.Conn
+	P2PConn net.PacketConn
 	// 端口复用
 	LocalPort int
+
+	// 远端地址
+	Addr *net.UDPAddr
 }
 
 // 向中继服务器发送报文失败
@@ -55,15 +58,18 @@ func (s *P2PHandler) WaitNotify() {
 // DailP2PAndSayHello 连接对方临时的公网地址,并且不停的发送数据
 func (s *P2PHandler) DailP2PAndSayHello(address, uid string) {
 	var errCount = 1
-	var conn net.Conn
+	var conn net.PacketConn
 	var err error
+	conn, err = reuseport.ListenPacket("udp", address)
+	addr, _ := net.ResolveUDPAddr("udp", address)
+	s.Addr = addr
 	for {
 		// 重试三次
 		if errCount > 3 {
 			break
 		}
 		time.Sleep(time.Second)
-		conn, err = reuseport.Dial("udp", fmt.Sprintf(":%d", s.LocalPort), address)
+		_, err = conn.WriteTo([]byte("hello"), addr)
 		if err != nil {
 			fmt.Println("请求第", errCount, "次地址失败,用户地址:", address, "error:", err.Error())
 			errCount++
@@ -83,7 +89,7 @@ func (s *P2PHandler) DailP2PAndSayHello(address, uid string) {
 func (s *P2PHandler) P2PRead() {
 	for {
 		buffer := make([]byte, 1024*1024*1024)
-		n, err := s.P2PConn.Read(buffer)
+		n, _, err := s.P2PConn.ReadFrom(buffer)
 		if err != nil {
 			if err.Error() == "EOF" {
 				fmt.Println("连接中断")
@@ -123,7 +129,7 @@ func (s *RosHandler) rosRead() {
 		fmt.Printf(">读取到%d个字节,ros_server发来内容:%s", cnt, string(msg))
 
 		// 将读取到的内容，回传给p2p节点
-		writeCnt, error := p2phandler.P2PConn.Write([]byte(msg))
+		writeCnt, error := p2phandler.P2PConn.WriteTo([]byte(msg), p2phandler.Addr)
 		if err != nil {
 			panic("消息转发给对端节点失败" + error.Error())
 		}
