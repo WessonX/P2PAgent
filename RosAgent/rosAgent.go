@@ -26,6 +26,14 @@ type P2PHandler struct {
 	LocalPort int
 }
 
+// 向中继服务器发送报文失败
+func (s *P2PHandler) SayHelloToServer() {
+	_, err := s.ServerConn.Write([]byte("hello"))
+	if err != nil {
+		panic("发送hello消息给服务器失败" + err.Error())
+	}
+}
+
 // WaitNotify 等待远程服务器发送通知告知我们另一个用户的公网IP
 func (s *P2PHandler) WaitNotify() {
 	buffer := make([]byte, 1024)
@@ -149,6 +157,7 @@ func main() {
 	}
 	fmt.Println("请求远程服务器成功...")
 	p2phandler = &P2PHandler{ServerConn: serverConn, LocalPort: int(localPort)}
+	p2phandler.SayHelloToServer()
 	p2phandler.WaitNotify()
 
 	time.Sleep(time.Hour)

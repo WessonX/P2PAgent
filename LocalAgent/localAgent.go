@@ -29,6 +29,14 @@ type Handler struct {
 	LocalPort int
 }
 
+// 向中继服务器发送报文失败
+func (s *Handler) SayHelloToServer() {
+	_, err := s.ServerConn.Write([]byte("hello"))
+	if err != nil {
+		panic("发送hello消息给服务器失败" + err.Error())
+	}
+}
+
 // WaitNotify 等待远程服务器发送通知告知我们另一个用户的公网IP
 func (s *Handler) WaitNotify() {
 	buffer := make([]byte, 1024)
@@ -150,6 +158,8 @@ func main() {
 	}
 	fmt.Println("请求远程服务器成功...")
 	handler = &Handler{ServerConn: serverConn, LocalPort: int(localPort)}
+	// 向中继服务器发送hello报文
+	handler.SayHelloToServer()
 	// 等待服务器回传对端节点的地址，并发起连接
 	handler.WaitNotify()
 
