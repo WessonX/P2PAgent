@@ -210,7 +210,7 @@ func main() {
 	*/
 	// 生成随机端口
 	// localPort := randPort(10000, 50000)
-	localPort := 3002
+	localPort := 9931
 
 	// 本地地址
 	laddr := &net.UDPAddr{

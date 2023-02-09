@@ -123,17 +123,6 @@ func (pconn *P2PConn) dialP2P() {
 	}
 	fmt.Println("p2p直连成功")
 
-	// 断开握手阶段建立的拨号连接，释放掉端口，供监听使用
-	// err = dialConn.Close()
-	// if err != nil {
-	// 	panic("关闭连接失败" + err.Error())
-	// }
-	// listenConn, err = net.ListenUDP("udp", pconn.LocalAddr)
-	// if err != nil {
-	// 	panic("监听p2p端口失败" + err.Error())
-	// }
-	// pconn.ListenConn = listenConn
-
 	go pconn.P2PRead()
 	go pconn.P2PWrite()
 
@@ -216,7 +205,7 @@ func main() {
 	*/
 	// 生成随机端口
 	// localPort := randPort(10000, 50000)
-	localPort := 3002
+	localPort := 9931
 
 	// 本地地址
 	laddr := &net.UDPAddr{
