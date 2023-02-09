@@ -63,7 +63,7 @@ func (s *Handler) DailP2PAndSayHello(address, uid string) {
 	var errCount = 1
 	var conn net.PacketConn
 	var err error
-	conn, err = reuseport.ListenPacket("udp", address)
+	conn, err = reuseport.ListenPacket("udp", "0.0.0.0:3002")
 	addr, _ := net.ResolveUDPAddr("udp", address)
 	fmt.Println("远端地址为:", addr)
 	s.Addr = addr
