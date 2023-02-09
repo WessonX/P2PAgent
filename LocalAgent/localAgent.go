@@ -81,8 +81,8 @@ func (sconn *ServerConn) HolePucnh() {
 
 // 与对端节点建立的连接
 type P2PConn struct {
-	// 给对端节点传数据
-	DialConn *net.UDPConn
+	// 监听本地端口的udp连接
+	ListenConn *net.UDPConn
 
 	// 对端节点的地址
 	RemoteAddr *net.UDPAddr
@@ -96,41 +96,37 @@ func (pconn *P2PConn) dialP2P() {
 	// 重试次数
 	var retryCount = 1
 
-	// 发消息连接
-	var dialConn *net.UDPConn
-
 	var err error
 
+	// 监听本地的端口
+	pconn.ListenConn, err = net.ListenUDP("udp", pconn.LocalAddr)
+	if err != nil {
+		panic("监听本地端口失败" + err.Error())
+	}
+
+	// 尝试三次，给对端节点发送udp消息进行打洞
 	for {
 		if retryCount > 3 {
 			break
 		}
 		time.Sleep(time.Second)
-		dialConn, err = net.DialUDP("udp", pconn.LocalAddr, pconn.RemoteAddr)
-		if err != nil {
-			fmt.Println("请求第", retryCount, "次地址失败", "error:", err.Error())
-			retryCount++
-			continue
-		}
-		_, e := dialConn.WriteToUDP([]byte("HandShake"), pconn.RemoteAddr)
+		_, e := pconn.ListenConn.WriteToUDP([]byte("HandShake"), pconn.RemoteAddr)
 		if e != nil {
-			fmt.Println("发送握手请求失败:", e.Error())
+			fmt.Println("打洞消息发送失败:", e.Error())
 			retryCount++
 			continue
 		}
-		// 将打洞阶段的连接关闭
-		dialConn.Close()
 		break
 	}
 	if retryCount > 3 {
 		panic("客户端连接失败")
 	}
-	// 等待3s，确保rosagent端已经开始监听
-	time.Sleep(time.Second * 3)
-	pconn.DialConn, err = net.DialUDP("udp", pconn.LocalAddr, pconn.RemoteAddr)
-	if err != nil {
-		panic("建立p2p连接失败:" + err.Error())
-	}
+	// // 等待3s，确保rosagent端已经开始监听
+	// time.Sleep(time.Second * 3)
+	// pconn.DialConn, err = net.DialUDP("udp", pconn.LocalAddr, pconn.RemoteAddr)
+	// if err != nil {
+	// 	panic("建立p2p连接失败:" + err.Error())
+	// }
 	fmt.Println("p2p直连成功")
 	go pconn.P2PRead()
 	go pconn.P2PWrite()
@@ -141,7 +137,7 @@ func (pconn *P2PConn) dialP2P() {
 func (pconn *P2PConn) P2PRead() {
 	for {
 		buffer := make([]byte, 1024*1024)
-		cnt, addr, err := pconn.DialConn.ReadFromUDP(buffer)
+		cnt, addr, err := pconn.ListenConn.ReadFromUDP(buffer)
 		fmt.Println("对端地址是:", addr.String())
 		if err != nil {
 			fmt.Println("从对端节点读取数据失败:", err.Error())
@@ -166,7 +162,7 @@ func (pconn *P2PConn) P2PWrite() {
 	for {
 		var msg string
 		fmt.Scanln(&msg)
-		_, err := pconn.DialConn.Write([]byte(msg))
+		_, err := pconn.ListenConn.WriteToUDP([]byte(msg), pconn.RemoteAddr)
 		if err != nil {
 			panic("消息转发给对端节点失败:" + err.Error())
 		}
@@ -199,7 +195,7 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf(">读取到%d个字节,浏览器发来内容:%s\n", readCnt, string(msg))
 
 		// 将消息转发给对端节点
-		writeCnt, err := p2pConn.DialConn.Write([]byte(msg))
+		writeCnt, err := p2pConn.ListenConn.WriteToUDP([]byte(msg), p2pConn.RemoteAddr)
 		if err != nil {
 			panic("消息转发给对端节点失败" + err.Error())
 		}

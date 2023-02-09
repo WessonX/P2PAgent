@@ -97,29 +97,22 @@ func (pconn *P2PConn) dialP2P() {
 	// 重试次数
 	var retryCount = 1
 
-	// 发消息连接
-	var dialConn *net.UDPConn
-
-	// 收消息连接
-	var listenConn *net.UDPConn
-
 	var err error
+
+	// 监听本地的端口
+	pconn.ListenConn, err = net.ListenUDP("udp", pconn.LocalAddr)
+	if err != nil {
+		panic("监听本地端口失败" + err.Error())
+	}
 
 	for {
 		if retryCount > 3 {
 			break
 		}
 		time.Sleep(time.Second)
-		dialConn, err = net.DialUDP("udp", pconn.LocalAddr, pconn.RemoteAddr)
-		if err != nil {
-			fmt.Println("请求第", retryCount, "次地址失败", "error:", err.Error())
-			retryCount++
-			continue
-		}
-		_, e := dialConn.WriteToUDP([]byte("HandShake"), pconn.RemoteAddr)
-		// _, e := dialConn.Write([]byte("HandShake"))
+		_, e := pconn.ListenConn.WriteToUDP([]byte("HandShake"), pconn.RemoteAddr)
 		if e != nil {
-			fmt.Println("发送握手请求失败:", e.Error())
+			fmt.Println("打洞消息发送失败:", e.Error())
 			retryCount++
 			continue
 		}
@@ -128,19 +121,18 @@ func (pconn *P2PConn) dialP2P() {
 	if retryCount > 3 {
 		panic("客户端连接失败")
 	}
-	pconn.DialConn = dialConn
 	fmt.Println("p2p直连成功")
 
 	// 断开握手阶段建立的拨号连接，释放掉端口，供监听使用
-	err = dialConn.Close()
-	if err != nil {
-		panic("关闭连接失败" + err.Error())
-	}
-	listenConn, err = net.ListenUDP("udp", pconn.LocalAddr)
-	if err != nil {
-		panic("监听p2p端口失败" + err.Error())
-	}
-	pconn.ListenConn = listenConn
+	// err = dialConn.Close()
+	// if err != nil {
+	// 	panic("关闭连接失败" + err.Error())
+	// }
+	// listenConn, err = net.ListenUDP("udp", pconn.LocalAddr)
+	// if err != nil {
+	// 	panic("监听p2p端口失败" + err.Error())
+	// }
+	// pconn.ListenConn = listenConn
 
 	go pconn.P2PRead()
 	go pconn.P2PWrite()
