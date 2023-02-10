@@ -127,14 +127,14 @@ func main() {
 	/*
 		与9090端口的ros_server建立websocket连接
 	*/
-	dialer := websocket.Dialer{}
-	rosConn, _, err := dialer.Dial("ws://127.0.0.1:9090", nil)
-	if err != nil {
-		panic("连接ros_server失败" + err.Error())
-	}
-	fmt.Println("连接ros_server成功")
-	roshandler = &RosHandler{RosConn: rosConn}
-	go roshandler.rosRead()
+	// dialer := websocket.Dialer{}
+	// rosConn, _, err := dialer.Dial("ws://127.0.0.1:9090", nil)
+	// if err != nil {
+	// 	panic("连接ros_server失败" + err.Error())
+	// }
+	// fmt.Println("连接ros_server成功")
+	// roshandler = &RosHandler{RosConn: rosConn}
+	// go roshandler.rosRead()
 
 	/*
 		与对端节点建立p2p连接
