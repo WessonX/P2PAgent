@@ -66,7 +66,7 @@ func (s *Handler) ExchangeAddress() {
 }
 
 func main() {
-	address := "[::1]:3001"
+	address := "[::]:3001"
 	listener, err := reuseport.Listen("tcp6", address)
 	if err != nil {
 		panic("服务端监听失败" + err.Error())
