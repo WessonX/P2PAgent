@@ -66,7 +66,7 @@ func (s *Handler) ExchangeAddress() {
 }
 
 func main() {
-	address := fmt.Sprintf("0.0.0.0:3001")
+	address := "[::1]:3001"
 	listener, err := reuseport.Listen("tcp", address)
 	if err != nil {
 		panic("服务端监听失败" + err.Error())
