@@ -127,14 +127,14 @@ func main() {
 	/*
 		与9090端口的ros_server建立websocket连接
 	*/
-	// dialer := websocket.Dialer{}
-	// rosConn, _, err := dialer.Dial("ws://127.0.0.1:9090", nil)
-	// if err != nil {
-	// 	panic("连接ros_server失败" + err.Error())
-	// }
-	// fmt.Println("连接ros_server成功")
-	// roshandler = &RosHandler{RosConn: rosConn}
-	// go roshandler.rosRead()
+	dialer := websocket.Dialer{}
+	rosConn, _, err := dialer.Dial("ws://127.0.0.1:9090", nil)
+	if err != nil {
+		panic("连接ros_server失败" + err.Error())
+	}
+	fmt.Println("连接ros_server成功")
+	roshandler = &RosHandler{RosConn: rosConn}
+	go roshandler.rosRead()
 
 	/*
 		与对端节点建立p2p连接
@@ -143,7 +143,7 @@ func main() {
 	// 指定本地端口
 	localPort := randPort(10000, 50000)
 	// 向 P2P 转发服务器注册自己的临时生成的公网 IP (请注意,Dial 这里拨号指定了自己临时生成的本地端口)
-	serverConn, err := reuseport.Dial("tcp", fmt.Sprintf("[::1]:%d", localPort), "[2408:4003:1093:d933:908d:411d:fc28:d28f]:3001")
+	serverConn, err := reuseport.Dial("tcp", fmt.Sprintf("[::]:%d", localPort), "[2408:4003:1093:d933:908d:411d:fc28:d28f]:3001")
 	if err != nil {
 		panic("请求远程服务器失败:" + err.Error())
 	}
