@@ -163,29 +163,48 @@
         },
         pose:{
           position:{
-            x : point[0],
-            y : point[1],
-            z : point[2],
+            x : Math.floor(point[0] * 100) / 100,
+            y : Math.floor(point[1] * 100) / 100,
+            z : point[2] ,
           },
           orientation:{
             x : quaternion[1],
             y : quaternion[2],
-            z : quaternion[3],
-            w : quaternion[0]
+            z : Math.floor(quaternion[3] * 100 ) / 100,
+            w : Math.floor(quaternion[0] * 100 ) / 100,
           }
         }
       };
       poseArray.push(temp);
     }
 
-    //组装消息
+    //组装消息。 每个消息最多包含50个点
+    // 标记当前是第几个坐标
+    var idx = 0;
+    // 标记剩余还未发出的坐标数
+    var len = quaternions.length
+
+    while(len > 50) {
+      var subArray = poseArray.slice(idx, idx + 50)
+      var message = new ROSLIB.Message({
+        header:header_top,
+        poses:subArray
+      });
+      mapPoints.publish(message);
+      console.log(message);
+      idx += 50
+      len -= 50
+    }
+    // 将剩余的点，单独发一次消息
+    var subArray = poseArray.slice(idx, idx + len)
     var message = new ROSLIB.Message({
-      header:header_top,
-      poses:poseArray
-    });
+        header:header_top,
+        poses:subArray
+      });
     mapPoints.publish(message);
     console.log(message);
   }
+
   //鼠标移动事件
   can.onmousemove = function(e) {
     if (drawBoard.isDraw) {
