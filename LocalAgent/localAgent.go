@@ -24,7 +24,7 @@ type Handler struct {
 	// 中继服务器的连接句柄
 	ServerConn net.Conn
 	// p2p 连接
-	P2PConn net.PacketConn
+	P2PConn net.Conn
 	// 端口复用
 	LocalPort int
 
@@ -54,19 +54,16 @@ func (s *Handler) WaitNotify() {
 	fmt.Println("客户端获取到了对方的地址:", data["address"])
 	// 断开服务器连接
 	defer s.ServerConn.Close()
-	// 请求用户的临时公网IP 以及uid
+	// 请求用户的公网IPv6 以及uid
 	go s.DailP2PAndSayHello(data["address"], data["dst_uid"])
 }
 
-// DailP2PAndSayHello 连接对方临时的公网地址,并且不停的发送数据
+// DailP2PAndSayHello 连接对方的ipv6地址
 func (s *Handler) DailP2PAndSayHello(address, uid string) {
 	var errCount = 1
-	var conn net.PacketConn
+	var conn net.Conn
 	var err error
-	conn, err = reuseport.ListenPacket("udp", "0.0.0.0:3002")
-	addr, _ := net.ResolveUDPAddr("udp", address)
-	fmt.Println("远端地址为:", addr)
-	s.Addr = addr
+	conn, err = reuseport.Dial("udp6", fmt.Sprintf("[::]:%d", s.LocalPort), address)
 	if err != nil {
 		panic("监听对端节点失败:" + err.Error())
 	}
@@ -76,7 +73,7 @@ func (s *Handler) DailP2PAndSayHello(address, uid string) {
 			break
 		}
 		time.Sleep(time.Second)
-		_, err = conn.WriteTo([]byte("hello"), addr)
+		_, err = conn.Write([]byte("hello"))
 		if err != nil {
 			fmt.Println("发送打洞消息失败", err.Error())
 			errCount++
@@ -97,7 +94,7 @@ func (s *Handler) P2PRead() {
 	for {
 		// 1024 * 1024，1M的缓存上限。后续这个值可能要根据实际数据量提高调整
 		buffer := make([]byte, 1024*1024*1024)
-		n, _, err := s.P2PConn.ReadFrom(buffer)
+		n, err := s.P2PConn.Read(buffer)
 		if err != nil {
 			if err.Error() == "EOF" {
 				fmt.Println("连接中断")
@@ -144,7 +141,7 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf(">读取到%d个字节,浏览器发来内容:%s", readCnt, string(msg))
 
 		// 将消息转发给对端节点
-		writeCnt, err := handler.P2PConn.WriteTo([]byte(msg), handler.Addr)
+		writeCnt, err := handler.P2PConn.Write([]byte(msg))
 		if err != nil {
 			panic("消息转发给对端节点失败" + err.Error())
 		}
@@ -159,11 +156,10 @@ func main() {
 	*/
 
 	// 随机生成本地端口
-	// localPort := randPort(10000, 50000)
-	localPort := 3002
+	localPort := randPort(10000, 50000)
 
 	// 向 P2P 转发服务器注册自己的临时生成的公网 IP (请注意,Dial 这里拨号指定了自己临时生成的本地端口。如果用net.Dial方法，使用的端口是随机分配的，就无法穿透了)
-	serverConn, err := reuseport.Dial("udp", fmt.Sprintf(":%d", localPort), "47.112.96.50:3001")
+	serverConn, err := reuseport.Dial("udp6", fmt.Sprintf("[::]:%d", localPort), "[2408:4003:1093:d933:908d:411d:fc28:d28f]:3001")
 	if err != nil {
 		panic("请求远程服务器失败:" + err.Error())
 	}

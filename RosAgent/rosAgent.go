@@ -60,11 +60,11 @@ func (s *P2PHandler) DailP2PAndSayHello(address, uid string) {
 	var errCount = 1
 	var conn net.PacketConn
 	var err error
-	conn, err = reuseport.ListenPacket("udp", "0.0.0.0:3002")
+	conn, err = reuseport.ListenPacket("udp6", "[::]:3002")
 	if err != nil {
 		panic("监听对端节点失败" + err.Error())
 	}
-	addr, _ := net.ResolveUDPAddr("udp", address)
+	addr, _ := net.ResolveUDPAddr("udp6", address)
 	s.Addr = addr
 	for {
 		// 重试三次
@@ -161,7 +161,7 @@ func main() {
 	// localPort := randPort(10000, 50000)
 	localPort := 3002
 	// 向 P2P 转发服务器注册自己的临时生成的公网 IP (请注意,Dial 这里拨号指定了自己临时生成的本地端口)
-	serverConn, err := reuseport.Dial("udp", fmt.Sprintf(":%d", localPort), "47.112.96.50:3001")
+	serverConn, err := reuseport.Dial("udp6", fmt.Sprintf("[::]:%d", localPort), "[2408:4003:1093:d933:908d:411d:fc28:d28f]:3001")
 	if err != nil {
 		panic("请求远程服务器失败:" + err.Error())
 	}
