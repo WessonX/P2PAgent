@@ -1,11 +1,8 @@
 package main
 
 import (
-	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"math"
-	"math/big"
 	"net"
 	"time"
 
@@ -51,39 +48,18 @@ func (s *P2PHandler) WaitNotify() {
 	fmt.Println("客户端获取到了对方的地址:", data["address"])
 	// 断开服务器连接
 	defer s.ServerConn.Close()
-	// 请求用户的临时公网IP 以及uid
-	go s.DailP2PAndSayHello(data["address"], data["dst_uid"])
+	// 监听公网IP 以及uid
+	go s.ListenP2P(data["address"], data["dst_uid"])
 }
 
-// DailP2PAndSayHello 连接对方临时的公网地址,并且不停的发送数据
-func (s *P2PHandler) DailP2PAndSayHello(address, uid string) {
-	var errCount = 1
+// ListenP2P 监听p2p连接
+func (s *P2PHandler) ListenP2P(address, uid string) {
 	var conn net.PacketConn
 	var err error
 	conn, err = reuseport.ListenPacket("udp6", "[::]:3002")
 	if err != nil {
 		panic("监听对端节点失败" + err.Error())
 	}
-	addr, _ := net.ResolveUDPAddr("udp6", address)
-	s.Addr = addr
-	for {
-		// 重试三次
-		if errCount > 3 {
-			break
-		}
-		time.Sleep(time.Second)
-		_, err = conn.WriteTo([]byte("hello"), addr)
-		if err != nil {
-			fmt.Println("请求第", errCount, "次地址失败,用户地址:", address, "error:", err.Error())
-			errCount++
-			continue
-		}
-		break
-	}
-	if errCount > 3 {
-		panic("客户端连接失败")
-	}
-	fmt.Println("P2P连接成功")
 	s.P2PConn = conn
 	go s.P2PRead()
 }
@@ -102,8 +78,13 @@ func (s *P2PHandler) P2PRead() {
 			continue
 		}
 		body := string(buffer[:n])
-		// fmt.Println("对端节点发来内容:", body)
-		fmt.Printf(">读取到%d个字节,对端节点发来内容：%s", n, body)
+
+		fmt.Printf(">读取到%d个字节,对端节点发来内容：%s\n", n, body)
+
+		// 过滤掉握手消息
+		if body == "Hello" {
+			continue
+		}
 
 		//将内容转发给ros_server
 		err = roshandler.RosConn.WriteMessage(websocket.TextMessage, []byte(body))
@@ -128,8 +109,8 @@ func (s *RosHandler) rosRead() {
 			return
 		}
 		cnt := len(msg)
-		// fmt.Println("ros_server发来内容:", string(msg))
-		fmt.Printf(">读取到%d个字节,ros_server发来内容:%s", cnt, string(msg))
+
+		fmt.Printf(">读取到%d个字节,ros_server发来内容:%s\n", cnt, string(msg))
 
 		// 将读取到的内容，回传给p2p节点
 		writeCnt, error := p2phandler.P2PConn.WriteTo([]byte(msg), p2phandler.Addr)
@@ -158,7 +139,6 @@ func main() {
 	*/
 
 	// 指定本地端口
-	// localPort := randPort(10000, 50000)
 	localPort := 3002
 	// 向 P2P 转发服务器注册自己的临时生成的公网 IP (请注意,Dial 这里拨号指定了自己临时生成的本地端口)
 	serverConn, err := reuseport.Dial("udp6", fmt.Sprintf("[::]:%d", localPort), "[2408:4003:1093:d933:908d:411d:fc28:d28f]:3001")
@@ -172,19 +152,4 @@ func main() {
 
 	time.Sleep(time.Hour)
 
-}
-
-// RandPort 生成区间范围内的随机端口
-func randPort(min, max int64) int64 {
-	if min > max {
-		panic("the min is greater than max!")
-	}
-	if min < 0 {
-		f64Min := math.Abs(float64(min))
-		i64Min := int64(f64Min)
-		result, _ := rand.Int(rand.Reader, big.NewInt(max+1+i64Min))
-		return result.Int64() - i64Min
-	}
-	result, _ := rand.Int(rand.Reader, big.NewInt(max-min+1))
-	return min + result.Int64()
 }
