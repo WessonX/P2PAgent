@@ -163,15 +163,15 @@
         },
         pose:{
           position:{
-            x : point[0],
-            y : point[1],
+            x : Math.floor(point[0] * 100 ) / 100,
+            y : Math.floor(point[1] * 100 ) / 100 ,
             z : point[2],
           },
           orientation:{
             x : quaternion[1],
             y : quaternion[2],
-            z : quaternion[3],
-            w : quaternion[0]
+            z : Math.floor(quaternion[3] * 100 ) / 100,
+            w : Math.floor(quaternion[0] * 100 ) / 100
           }
         }
       };

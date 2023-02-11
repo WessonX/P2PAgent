@@ -1,11 +1,8 @@
 package main
 
 import (
-	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"math"
-	"math/big"
 	"net"
 	"time"
 
@@ -55,7 +52,7 @@ func (s *P2PHandler) DailP2PAndSayHello(address, uid string) {
 			break
 		}
 		time.Sleep(time.Second)
-		conn, err = reuseport.Dial("tcp", fmt.Sprintf(":%d", s.LocalPort), address)
+		conn, err = reuseport.Dial("tcp6", fmt.Sprintf("[::]:%d", s.LocalPort), address)
 		if err != nil {
 			fmt.Println("请求第", errCount, "次地址失败,用户地址:", address, "error:", err.Error())
 			errCount++
@@ -86,7 +83,7 @@ func (s *P2PHandler) P2PRead() {
 		}
 		body := string(buffer[:n])
 		// fmt.Println("对端节点发来内容:", body)
-		fmt.Printf(">读取到%d个字节,对端节点发来内容：%s", n, body)
+		fmt.Printf(">读取到%d个字节,对端节点发来内容：%s\n", n, body)
 
 		//将内容转发给ros_server
 		err = roshandler.RosConn.WriteMessage(websocket.TextMessage, []byte(body))
@@ -112,7 +109,7 @@ func (s *RosHandler) rosRead() {
 		}
 		cnt := len(msg)
 		// fmt.Println("ros_server发来内容:", string(msg))
-		fmt.Printf(">读取到%d个字节,ros_server发来内容:%s", cnt, string(msg))
+		fmt.Printf(">读取到%d个字节,ros_server发来内容:%s\n", cnt, string(msg))
 
 		// 将读取到的内容，回传给p2p节点
 		writeCnt, error := p2phandler.P2PConn.Write([]byte(msg))
@@ -141,9 +138,9 @@ func main() {
 	*/
 
 	// 指定本地端口
-	localPort := randPort(10000, 50000)
+	localPort := 3002
 	// 向 P2P 转发服务器注册自己的临时生成的公网 IP (请注意,Dial 这里拨号指定了自己临时生成的本地端口)
-	serverConn, err := reuseport.Dial("tcp", fmt.Sprintf("[::]:%d", localPort), "[2408:4003:1093:d933:908d:411d:fc28:d28f]:3001")
+	serverConn, err := reuseport.Dial("tcp6", fmt.Sprintf("[::]:%d", localPort), "[2408:4003:1093:d933:908d:411d:fc28:d28f]:3001")
 	if err != nil {
 		panic("请求远程服务器失败:" + err.Error())
 	}
@@ -153,19 +150,4 @@ func main() {
 
 	time.Sleep(time.Hour)
 
-}
-
-// RandPort 生成区间范围内的随机端口
-func randPort(min, max int64) int64 {
-	if min > max {
-		panic("the min is greater than max!")
-	}
-	if min < 0 {
-		f64Min := math.Abs(float64(min))
-		i64Min := int64(f64Min)
-		result, _ := rand.Int(rand.Reader, big.NewInt(max+1+i64Min))
-		return result.Int64() - i64Min
-	}
-	result, _ := rand.Int(rand.Reader, big.NewInt(max-min+1))
-	return min + result.Int64()
 }
