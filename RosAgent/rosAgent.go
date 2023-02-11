@@ -57,6 +57,8 @@ func (s *P2PHandler) ListenP2P(address, uid string) {
 	var conn net.PacketConn
 	var err error
 	conn, err = reuseport.ListenPacket("udp6", "[::]:3002")
+	addr, _ := net.ResolveUDPAddr("udp6", address)
+	s.Addr = addr
 	if err != nil {
 		panic("监听对端节点失败" + err.Error())
 	}
@@ -82,7 +84,7 @@ func (s *P2PHandler) P2PRead() {
 		fmt.Printf(">读取到%d个字节,对端节点发来内容：%s\n", n, body)
 
 		// 过滤掉握手消息
-		if body == "Hello" {
+		if body == "hello" {
 			continue
 		}
 
