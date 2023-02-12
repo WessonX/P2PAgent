@@ -21,6 +21,11 @@ import (
 **length后，是数据的总长度，后面填充空格，使得填充到18个字节
  */
 
+/*
+ ** 查询指定的uuid的地址的请求头：
+ ** requestForAddr:{uuid}  共 15 + 32 = 47个字节
+ */
+
 // 与对端节点建立p2p连接的handler
 var handler *Handler
 
@@ -37,6 +42,20 @@ type Handler struct {
 
 	// 需要读取的报文长度
 	remain_cnt int
+}
+
+// 等待服务器回传我们的uuid
+func (s *Handler) getUUID() string {
+	buffer := make([]byte, 1024)
+	n, err := s.ServerConn.Read(buffer)
+	if err != nil {
+		panic("读取失败" + err.Error())
+	}
+	data := make(map[string]string)
+	if err := json.Unmarshal(buffer[:n], &data); err != nil {
+		panic("获取uuid失败" + err.Error())
+	}
+	return data["uuid"]
 }
 
 // WaitNotify 等待远程服务器发送通知告知我们另一个用户的公网IP
@@ -217,6 +236,11 @@ func main() {
 	}
 	fmt.Println("请求远程服务器成功...")
 	handler = &Handler{ServerConn: serverConn, LocalPort: int(localPort), remain_cnt: 0}
+
+	// 获取uuid
+	uuid := handler.getUUID()
+	fmt.Println("uuid:", uuid)
+
 	// 等待服务器回传对端节点的地址，并发起连接
 	handler.WaitNotify()
 

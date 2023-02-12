@@ -27,6 +27,20 @@ type P2PHandler struct {
 	remain_cnt int
 }
 
+// 等待服务器回传我们的uuid
+func (s *P2PHandler) getUUID() string {
+	buffer := make([]byte, 1024)
+	n, err := s.ServerConn.Read(buffer)
+	if err != nil {
+		panic("读取失败" + err.Error())
+	}
+	data := make(map[string]string)
+	if err := json.Unmarshal(buffer[:n], &data); err != nil {
+		panic("获取uuid失败" + err.Error())
+	}
+	return data["uuid"]
+}
+
 // WaitNotify 等待远程服务器发送通知告知我们另一个用户的公网IP
 func (s *P2PHandler) WaitNotify() {
 	buffer := make([]byte, 1024)
@@ -205,6 +219,9 @@ func main() {
 	}
 	fmt.Println("请求远程服务器成功...")
 	p2phandler = &P2PHandler{ServerConn: serverConn, LocalPort: int(localPort), remain_cnt: 0}
+	// 获取uuid
+	uuid := p2phandler.getUUID()
+	fmt.Println("uuid:", uuid)
 	p2phandler.WaitNotify()
 
 	time.Sleep(time.Hour)

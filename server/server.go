@@ -37,6 +37,7 @@ func (s *Handler) Handle() {
 			Address: conn.RemoteAddr().String(),
 		}
 		fmt.Println("一个客户端连接进去了,他的公网IP是", conn.RemoteAddr().String())
+		go WriteBackUuid(conn, id)
 		// 暂时只接受两个客户端,多余的不处理
 		if len(s.ClientPool) == 2 {
 			// 交换双方的公网地址
@@ -64,6 +65,32 @@ func (s *Handler) ExchangeAddress() {
 		}
 	}
 }
+
+// 将分配的uuid回传给客户端
+func WriteBackUuid(conn net.Conn, uuid string) {
+	var data = make(map[string]string)
+	data["uuid"] = uuid
+	body, _ := json.Marshal(data)
+	_, err := conn.Write(body)
+	if err != nil {
+		fmt.Println("回传uuid时出现了错误", err.Error())
+	}
+	fmt.Println("回传uuid给客户端:", conn.RemoteAddr().String())
+}
+
+// // 处理来自localAgent的p2p连接请求
+// func RecvReq(conn net.Conn) {
+// 	buffer := make([]byte, 1024)
+// 	_, err := conn.Read(buffer)
+// 	if err != nil {
+// 		panic("读取失败" + err.Error())
+// 	}
+// 	if string(buffer[:14]) == "requestForAddr" {
+// 		uuid := string(buffer[15:])
+// 		fmt.Println()
+// 	}
+
+// }
 
 func main() {
 	address := "[::]:3001"
