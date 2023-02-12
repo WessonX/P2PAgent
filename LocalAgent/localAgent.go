@@ -61,6 +61,7 @@ func (s *Handler) requestForAddr(uuid string) {
 	if err != nil {
 		panic("发送requestForAddr请求失败" + err.Error())
 	}
+	fmt.Println("向服务器发送请求，获取uuid为:", uuid, "的地址")
 }
 
 // WaitNotify 等待远程服务器发送通知告知我们另一个用户的公网IP

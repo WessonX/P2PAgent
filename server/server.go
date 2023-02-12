@@ -74,7 +74,7 @@ func (s *Handler) HandleReq(conn net.Conn) {
 		var dataForRosAgent = make(map[string]string)
 		dataForRosAgent["address"] = conn.RemoteAddr().String() // localAgent的公网地址
 		body, _ = json.Marshal(dataForRosAgent)
-		_, err = conn.Write(body)
+		_, err = s.ClientPool[uuid].Conn.Write(body)
 		if err != nil {
 			fmt.Println("回传地址给rosAgent失败:", err.Error())
 		}
