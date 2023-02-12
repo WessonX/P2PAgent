@@ -121,9 +121,6 @@ func (s *P2PHandler) P2PRead() {
 				// 将已读的部分清除掉
 				buffer = buffer[s.remain_cnt:]
 
-				// 将remain_cnt 归零
-				s.remain_cnt = 0
-
 				fmt.Printf(">读取到%d个字节,对端节点发来内容:%s\n", s.remain_cnt, content)
 
 				//将内容转发给ros_server
@@ -133,6 +130,8 @@ func (s *P2PHandler) P2PRead() {
 				}
 				fmt.Println("消息转发给ros_server")
 
+				// 将remain_cnt 归零
+				s.remain_cnt = 0
 			}
 		}
 	}
