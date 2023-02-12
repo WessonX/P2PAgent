@@ -80,19 +80,25 @@ func (s *P2PHandler) P2PRead() {
 	// 用于存储读到的流数据
 	var buffer []byte
 
+	// 判断是否需要读更多数据
+	var needReadMore bool
 	for {
-		// 先获取到流数据
-		temp_buffer := make([]byte, 1024*1024)
-		_, err := s.P2PConn.Read(temp_buffer)
-		if err != nil {
-			if err.Error() == "EOF" {
-				fmt.Println("连接中断")
-				break
+		// 如果buffer等于空，说明没有待处理的数据，则先获取到流数据；否则，就先处理buffer中的数据，不再额外获取
+		if len(buffer) == 0 || needReadMore {
+			// temp_buffer := make([]byte, 1024*1024)
+			var temp_buffer []byte
+			_, err := s.P2PConn.Read(temp_buffer)
+			if err != nil {
+				if err.Error() == "EOF" {
+					fmt.Println("连接中断")
+					break
+				}
+				fmt.Println("读取失败", err.Error())
+				continue
 			}
-			fmt.Println("读取失败", err.Error())
-			continue
+			buffer = append(buffer, temp_buffer...)
+			needReadMore = false
 		}
-		buffer = append(buffer, temp_buffer...)
 
 		// 根据remain_cnt,判断目前将要读到的内容是包头，还是包的内容
 		//等于0，说明之前的包已经读完，将要读的是一个新的包
@@ -113,6 +119,7 @@ func (s *P2PHandler) P2PRead() {
 
 			// 如果缓冲区长度小于需要读的.那就不读，继续接受流数据
 			if buffer_len < s.remain_cnt {
+				needReadMore = true
 				continue
 			} else {
 				// 如果缓冲区长度大于等于需要读的,按需读取
@@ -124,7 +131,7 @@ func (s *P2PHandler) P2PRead() {
 				fmt.Printf(">读取到%d个字节,对端节点发来内容:%s\n", s.remain_cnt, content)
 
 				//将内容转发给ros_server
-				err = roshandler.RosConn.WriteMessage(websocket.TextMessage, []byte(content))
+				err := roshandler.RosConn.WriteMessage(websocket.TextMessage, []byte(content))
 				if err != nil {
 					panic("转发内容给ros_server失败:" + err.Error())
 				}
