@@ -1,6 +1,7 @@
 package main
 
 import (
+	"P2PAgent/utils"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -21,6 +22,9 @@ type P2PHandler struct {
 	P2PConn net.Conn
 	// 端口复用
 	LocalPort int
+
+	// 需要读取的报文长度
+	remain_cnt int
 }
 
 // WaitNotify 等待远程服务器发送通知告知我们另一个用户的公网IP
@@ -70,9 +74,16 @@ func (s *P2PHandler) DailP2PAndSayHello(address, uid string) {
 
 // P2PRead 读取 P2P 节点的数据
 func (s *P2PHandler) P2PRead() {
+	// 用于拼接分片，组成完整的报文
+	var content string
+
+	// 用于存储读到的流数据
+	var buffer []byte
+
 	for {
-		buffer := make([]byte, 1024*1024*1024)
-		n, err := s.P2PConn.Read(buffer)
+		// 先获取到流数据
+		temp_buffer := make([]byte, 1024*1024)
+		_, err := s.P2PConn.Read(temp_buffer)
 		if err != nil {
 			if err.Error() == "EOF" {
 				fmt.Println("连接中断")
@@ -81,17 +92,49 @@ func (s *P2PHandler) P2PRead() {
 			fmt.Println("读取失败", err.Error())
 			continue
 		}
-		body := string(buffer[:n])
-		// fmt.Println("对端节点发来内容:", body)
-		fmt.Printf(">读取到%d个字节,对端节点发来内容：%s\n", n, body)
+		buffer = append(buffer, temp_buffer...)
 
-		//将内容转发给ros_server
-		err = roshandler.RosConn.WriteMessage(websocket.TextMessage, []byte(body))
-		if err != nil {
-			panic("转发内容给ros_server失败:" + err.Error())
+		// 根据remain_cnt,判断目前将要读到的内容是包头，还是包的内容
+		//等于0，说明之前的包已经读完，将要读的是一个新的包
+		if s.remain_cnt == 0 {
+			// 读取前18个字节，获取包头
+			data_head := string(buffer[:18])
+
+			// 解析出长度
+			s.remain_cnt = utils.ResolveDataHead(data_head)
+
+			// drop掉buffer的前18个字节，因为已读
+			buffer = buffer[18:]
+		} else {
+			// 大于0.说明接下来要读的都是包的分片
+
+			// 获取当前缓冲区的长度
+			buffer_len := len(buffer)
+
+			// 如果缓冲区长度小于需要读的.那就不读，继续接受流数据
+			if buffer_len < s.remain_cnt {
+				continue
+			} else {
+				// 如果缓冲区长度大于等于需要读的,按需读取
+				content = string(buffer[:s.remain_cnt])
+
+				// 将已读的部分清除掉
+				buffer = buffer[s.remain_cnt:]
+
+				// 将remain_cnt 归零
+				s.remain_cnt = 0
+
+				fmt.Printf(">读取到%d个字节,对端节点发来内容:%s\n", s.remain_cnt, content)
+
+				//将内容转发给ros_server
+				err = roshandler.RosConn.WriteMessage(websocket.TextMessage, []byte(content))
+				if err != nil {
+					panic("转发内容给ros_server失败:" + err.Error())
+				}
+				fmt.Println("消息转发给ros_server")
+
+			}
 		}
-		fmt.Println("消息转发给ros_server")
-
 	}
 }
 
@@ -108,11 +151,16 @@ func (s *RosHandler) rosRead() {
 			return
 		}
 		cnt := len(msg)
-		// fmt.Println("ros_server发来内容:", string(msg))
 		fmt.Printf(">读取到%d个字节,ros_server发来内容:%s\n", cnt, string(msg))
 
+		// 自定义的包头
+		data_head := fmt.Sprintf("length:%-11d", cnt)
+
+		// 将包头和数据主体拼接
+		content := data_head + string(msg)
+
 		// 将读取到的内容，回传给p2p节点
-		writeCnt, error := p2phandler.P2PConn.Write([]byte(msg))
+		writeCnt, error := p2phandler.P2PConn.Write([]byte(content))
 		if err != nil {
 			panic("消息转发给对端节点失败" + error.Error())
 		}
@@ -145,7 +193,7 @@ func main() {
 		panic("请求远程服务器失败:" + err.Error())
 	}
 	fmt.Println("请求远程服务器成功...")
-	p2phandler = &P2PHandler{ServerConn: serverConn, LocalPort: int(localPort)}
+	p2phandler = &P2PHandler{ServerConn: serverConn, LocalPort: int(localPort), remain_cnt: 0}
 	p2phandler.WaitNotify()
 
 	time.Sleep(time.Hour)
