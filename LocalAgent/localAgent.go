@@ -21,11 +21,6 @@ import (
 **length后，是数据的总长度，后面填充空格，使得填充到18个字节
  */
 
-/*
- ** 查询指定的uuid的地址的请求头：
- ** requestForAddr:{uuid}  共 15 + 32 = 47个字节
- */
-
 // 与对端节点建立p2p连接的handler
 var handler *Handler
 
@@ -58,6 +53,16 @@ func (s *Handler) getUUID() string {
 	return data["uuid"]
 }
 
+func (s *Handler) requestForAddr(uuid string) {
+	var data = make(map[string]string)
+	data["targetUUID"] = uuid // 目标uuid
+	body, _ := json.Marshal(data)
+	_, err := s.ServerConn.Write(body)
+	if err != nil {
+		panic("发送requestForAddr请求失败" + err.Error())
+	}
+}
+
 // WaitNotify 等待远程服务器发送通知告知我们另一个用户的公网IP
 func (s *Handler) WaitNotify() {
 	buffer := make([]byte, 1024)
@@ -73,11 +78,11 @@ func (s *Handler) WaitNotify() {
 	// 断开服务器连接
 	defer s.ServerConn.Close()
 	// 请求用户的临时公网IP 以及uid
-	go s.DailP2PAndSayHello(data["address"], data["dst_uid"])
+	go s.DailP2PAndSayHello(data["address"])
 }
 
 // DailP2PAndSayHello 连接对方临时的公网地址,并且不停的发送数据
-func (s *Handler) DailP2PAndSayHello(address, uid string) {
+func (s *Handler) DailP2PAndSayHello(address string) {
 	var errCount = 1
 	var conn net.Conn
 	var err error
@@ -240,6 +245,11 @@ func main() {
 	// 获取uuid
 	uuid := handler.getUUID()
 	fmt.Println("uuid:", uuid)
+
+	var uid string
+	fmt.Scanln(&uid)
+	// 请求获取指定uuid的地址
+	handler.requestForAddr(uid)
 
 	// 等待服务器回传对端节点的地址，并发起连接
 	handler.WaitNotify()

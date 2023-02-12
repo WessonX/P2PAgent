@@ -38,6 +38,46 @@ func (s *Handler) Handle() {
 		}
 		fmt.Println("一个客户端连接进去了,他的公网IP是", conn.RemoteAddr().String())
 		go WriteBackUuid(conn, id)
+		go s.HandleReq(conn)
+	}
+}
+
+// 处理来自localAgent的请求
+func (s *Handler) HandleReq(conn net.Conn) {
+	buffer := make([]byte, 1024)
+	n, err := conn.Read(buffer)
+	if err != nil {
+		panic("读取失败" + err.Error())
+	}
+	data := make(map[string]string)
+	if err = json.Unmarshal(buffer[:n], &data); err != nil {
+		panic("获取uuid失败" + err.Error())
+	}
+
+	if data["targetUUID"] != "" {
+		// 读取目标uuid
+		uuid := data["targetUUID"]
+
+		// 查找到uuid的地址
+		addr := s.ClientPool[uuid].Address
+
+		// 写回给localAgent
+		var dataForLocalAgent = make(map[string]string)
+		dataForLocalAgent["address"] = addr // rosAgent的公网地址
+		body, _ := json.Marshal(dataForLocalAgent)
+		_, err := conn.Write(body)
+		if err != nil {
+			fmt.Println("回传地址给localAgent失败:", err.Error())
+		}
+
+		// 写回给rosAgent
+		var dataForRosAgent = make(map[string]string)
+		dataForRosAgent["address"] = conn.RemoteAddr().String() // localAgent的公网地址
+		body, _ = json.Marshal(dataForRosAgent)
+		_, err = conn.Write(body)
+		if err != nil {
+			fmt.Println("回传地址给rosAgent失败:", err.Error())
+		}
 	}
 }
 
@@ -71,20 +111,6 @@ func WriteBackUuid(conn net.Conn, uuid string) {
 	}
 	fmt.Println("回传uuid给客户端:", conn.RemoteAddr().String())
 }
-
-// // 处理来自localAgent的p2p连接请求
-// func RecvReq(conn net.Conn) {
-// 	buffer := make([]byte, 1024)
-// 	_, err := conn.Read(buffer)
-// 	if err != nil {
-// 		panic("读取失败" + err.Error())
-// 	}
-// 	if string(buffer[:14]) == "requestForAddr" {
-// 		uuid := string(buffer[15:])
-// 		fmt.Println()
-// 	}
-
-// }
 
 func main() {
 	address := "[::]:3001"
