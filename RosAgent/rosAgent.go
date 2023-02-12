@@ -157,7 +157,8 @@ func (s *RosHandler) rosRead() {
 		data_head := fmt.Sprintf("length:%-11d", cnt)
 
 		// 将包头和数据主体拼接
-		content := data_head + string(msg)
+		body := string(msg)
+		content := data_head + body
 
 		// 将读取到的内容，回传给p2p节点
 		writeCnt, error := p2phandler.P2PConn.Write([]byte(content))

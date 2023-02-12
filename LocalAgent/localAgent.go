@@ -177,7 +177,8 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 		data_head := fmt.Sprintf("length:%-11d", readCnt)
 
 		// 将包头和数据主体拼接
-		content := data_head + string(msg)
+		body := string(msg)
+		content := data_head + body
 
 		// 将消息转发给对端节点
 		writeCnt, err := handler.P2PConn.Write([]byte(content))
