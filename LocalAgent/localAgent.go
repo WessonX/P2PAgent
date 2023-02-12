@@ -113,6 +113,11 @@ func (s *Handler) P2PRead() {
 			needReadMore = false
 		}
 
+		// 如果没读到数据，就不往下执行，直到read到数据为止
+		if len(buffer) == 0 {
+			continue
+		}
+
 		// 根据remain_cnt,判断目前将要读到的内容是包头，还是包的内容
 		//等于0，说明之前的包已经读完，将要读的是一个新的包
 		if s.remain_cnt == 0 {
