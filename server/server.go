@@ -38,12 +38,6 @@ func (s *Handler) Handle() {
 		}
 		fmt.Println("一个客户端连接进去了,他的公网IP是", conn.RemoteAddr().String())
 		go WriteBackUuid(conn, id)
-		// 暂时只接受两个客户端,多余的不处理
-		if len(s.ClientPool) == 2 {
-			// 交换双方的公网地址
-			s.ExchangeAddress()
-			break
-		}
 	}
 }
 
