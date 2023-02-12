@@ -98,9 +98,8 @@ func (s *Handler) P2PRead() {
 	for {
 		// 如果buffer等于空，说明没有待处理的数据，则先获取到流数据；否则，就先处理buffer中的数据，不再额外获取
 		if len(buffer) == 0 || needReadMore {
-			// temp_buffer := make([]byte, 1024*1024)
-			var temp_buffer []byte
-			_, err := s.P2PConn.Read(temp_buffer)
+			temp_buffer := make([]byte, 1024*1024)
+			cnt, err := s.P2PConn.Read(temp_buffer)
 			if err != nil {
 				if err.Error() == "EOF" {
 					fmt.Println("连接中断")
@@ -109,7 +108,7 @@ func (s *Handler) P2PRead() {
 				fmt.Println("读取失败", err.Error())
 				continue
 			}
-			buffer = append(buffer, temp_buffer...)
+			buffer = append(buffer, temp_buffer[:cnt]...)
 			needReadMore = false
 		}
 
