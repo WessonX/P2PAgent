@@ -81,25 +81,6 @@ func (s *Handler) HandleReq(conn net.Conn) {
 	}
 }
 
-// ExchangeAddress 交换地址
-func (s *Handler) ExchangeAddress() {
-	for uid, client := range s.ClientPool {
-		for id, c := range s.ClientPool {
-			// 自己不交换
-			if uid == id {
-				continue
-			}
-			var data = make(map[string]string)
-			data["dst_uid"] = client.UID     // 对方的 UID
-			data["address"] = client.Address // 对方的公网地址
-			body, _ := json.Marshal(data)
-			if _, err := c.Conn.Write(body); err != nil {
-				fmt.Println("交换地址时出现了错误", err.Error())
-			}
-		}
-	}
-}
-
 // 将分配的uuid回传给客户端
 func WriteBackUuid(conn net.Conn, uuid string) {
 	var data = make(map[string]string)
