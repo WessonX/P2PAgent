@@ -47,11 +47,13 @@ func (s *Handler) HandleReq(conn net.Conn) {
 	buffer := make([]byte, 1024)
 	n, err := conn.Read(buffer)
 	if err != nil {
-		panic("读取失败" + err.Error())
+		fmt.Println("读取失败" + err.Error())
+		return
 	}
 	data := make(map[string]string)
 	if err = json.Unmarshal(buffer[:n], &data); err != nil {
-		panic("获取uuid失败" + err.Error())
+		fmt.Println("获取uuid失败" + err.Error())
+		return
 	}
 
 	if data["targetUUID"] != "" {
