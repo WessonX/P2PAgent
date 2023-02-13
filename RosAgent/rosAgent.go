@@ -42,7 +42,7 @@ func (s *P2PHandler) getUUID() string {
 }
 
 // WaitNotify 等待远程服务器发送通知告知我们另一个用户的公网IP
-func (s *P2PHandler) WaitNotify() {
+func (s *P2PHandler) WaitNotify() string {
 	buffer := make([]byte, 1024)
 	n, err := s.ServerConn.Read(buffer)
 	if err != nil {
@@ -56,11 +56,11 @@ func (s *P2PHandler) WaitNotify() {
 	// 断开服务器连接
 	defer s.ServerConn.Close()
 	// 请求用户的临时公网IP 以及uid
-	go s.DailP2PAndSayHello(data["address"], data["dst_uid"])
+	return data["address"]
 }
 
 // DailP2PAndSayHello 连接对方临时的公网地址,并且不停的发送数据
-func (s *P2PHandler) DailP2PAndSayHello(address, uid string) {
+func (s *P2PHandler) DailP2P(address string) bool {
 	var errCount = 1
 	var conn net.Conn
 	var err error
@@ -70,7 +70,7 @@ func (s *P2PHandler) DailP2PAndSayHello(address, uid string) {
 			break
 		}
 		time.Sleep(time.Second)
-		conn, err = reuseport.Dial("tcp6", fmt.Sprintf("[::]:%d", s.LocalPort), address)
+		conn, err = reuseport.Dial("tcp", fmt.Sprintf("[::]:%d", s.LocalPort), address)
 		if err != nil {
 			fmt.Println("请求第", errCount, "次地址失败,用户地址:", address, "error:", err.Error())
 			errCount++
@@ -79,11 +79,13 @@ func (s *P2PHandler) DailP2PAndSayHello(address, uid string) {
 		break
 	}
 	if errCount > 3 {
-		panic("客户端连接失败")
+		fmt.Println("客户端连接失败")
+		return false
 	}
 	fmt.Println("P2P连接成功")
 	s.P2PConn = conn
 	go s.P2PRead()
+	return true
 }
 
 // P2PRead 读取 P2P 节点的数据
@@ -191,6 +193,36 @@ func (s *RosHandler) rosRead() {
 		}
 		fmt.Println("消息转发给对端节点成功,大小:", writeCnt)
 	}
+}
+
+/*
+relayAddr: 中继服务器的地址。如果是ipv4地址，则逻辑为tcp打洞；如果是ipv6地址，则逻辑为ipv6直连。
+bool:连接是否成功
+*/
+func CreateP2pConn(relayAddr string) bool {
+	var serverConn net.Conn
+	var err error
+
+	// 随机生成本地端口
+	localPort := 3002
+
+	// 向 P2P 转发服务器注册自己的公网 IP (请注意,Dial 这里拨号指定了自己临时生成的本地端口。如果用net.Dial方法，使用的端口是随机分配的，就无法穿透了)
+	serverConn, err = reuseport.Dial("tcp", fmt.Sprintf("[::]:%d", localPort), relayAddr)
+	if err != nil {
+		fmt.Println("连接失败:" + err.Error())
+		return false
+	}
+	fmt.Println("请求远程服务器成功...")
+	p2phandler = &P2PHandler{ServerConn: serverConn, LocalPort: int(localPort), remain_cnt: 0}
+
+	// 获取uuid
+	uuid := p2phandler.getUUID()
+	fmt.Println("uuid:", uuid)
+
+	// 等待服务器回传对端节点的地址，并发起连接
+	targetAddr := p2phandler.WaitNotify()
+
+	return p2phandler.DailP2P(targetAddr)
 }
 
 func main() {

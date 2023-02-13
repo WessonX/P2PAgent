@@ -65,7 +65,7 @@ func (s *Handler) requestForAddr(uuid string) {
 }
 
 // WaitNotify 等待远程服务器发送通知告知我们另一个用户的公网IP
-func (s *Handler) WaitNotify() {
+func (s *Handler) WaitNotify() string {
 	buffer := make([]byte, 1024)
 	n, err := s.ServerConn.Read(buffer)
 	if err != nil {
@@ -78,12 +78,12 @@ func (s *Handler) WaitNotify() {
 	fmt.Println("客户端获取到了对方的地址:", data["address"])
 	// 断开服务器连接
 	defer s.ServerConn.Close()
-	// 请求用户的临时公网IP 以及uid
-	go s.DailP2PAndSayHello(data["address"])
+
+	return data["address"]
 }
 
-// DailP2PAndSayHello 连接对方临时的公网地址,并且不停的发送数据
-func (s *Handler) DailP2PAndSayHello(address string) {
+// DailP2P 连接对方临时的公网地址,并且不停的发送数据
+func (s *Handler) DailP2P(address string) bool {
 	var errCount = 1
 	var conn net.Conn
 	var err error
@@ -102,11 +102,13 @@ func (s *Handler) DailP2PAndSayHello(address string) {
 		break
 	}
 	if errCount > 3 {
-		panic("客户端连接失败")
+		fmt.Println("客户端连接失败")
+		return false
 	}
 	fmt.Println("P2P连接成功")
 	s.P2PConn = conn
 	go s.P2PRead()
+	return true
 }
 
 // P2PRead 读取 P2P 节点的数据
@@ -227,18 +229,33 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func main() {
-	/*
-		与对端节点建立p2p连接
-	*/
+// 发消息给浏览器，告知p2p连接是否成功
+func NotifyIfSuccess(isSuccess string) {
+	var data = make(map[string]string)
+	data["isSuccess"] = isSuccess
+	body, _ := json.Marshal(data)
+	err := browserConn.WriteMessage(websocket.TextMessage, body)
+	if err != nil {
+		panic("通知浏览器p2p连接是否成功，失败:" + err.Error())
+	}
+}
+
+/*
+relayAddr: 中继服务器的地址。如果是ipv4地址，则逻辑为tcp打洞；如果是ipv6地址，则逻辑为ipv6直连。
+bool:连接是否成功
+*/
+func CreateP2pConn(relayAddr string) bool {
+	var serverConn net.Conn
+	var err error
 
 	// 随机生成本地端口
 	localPort := randPort(10000, 50000)
 
-	// 向 P2P 转发服务器注册自己的临时生成的公网 IP (请注意,Dial 这里拨号指定了自己临时生成的本地端口。如果用net.Dial方法，使用的端口是随机分配的，就无法穿透了)
-	serverConn, err := reuseport.Dial("tcp6", fmt.Sprintf("[::]:%d", localPort), "[2408:4003:1093:d933:908d:411d:fc28:d28f]:3001")
+	// 向 P2P 转发服务器注册自己的公网 IP (请注意,Dial 这里拨号指定了自己临时生成的本地端口。如果用net.Dial方法，使用的端口是随机分配的，就无法穿透了)
+	serverConn, err = reuseport.Dial("tcp", fmt.Sprintf("[::]:%d", localPort), relayAddr)
 	if err != nil {
-		panic("请求远程服务器失败:" + err.Error())
+		fmt.Println("连接失败:" + err.Error())
+		return false
 	}
 	fmt.Println("请求远程服务器成功...")
 	handler = &Handler{ServerConn: serverConn, LocalPort: int(localPort), remain_cnt: 0}
@@ -253,7 +270,24 @@ func main() {
 	handler.requestForAddr(uid)
 
 	// 等待服务器回传对端节点的地址，并发起连接
-	handler.WaitNotify()
+	targetAddr := handler.WaitNotify()
+
+	return handler.DailP2P(targetAddr)
+}
+
+func main() {
+	/*
+		与对端节点建立p2p连接
+	*/
+
+	// 先尝试ipv6连接
+	isSuccess := CreateP2pConn("[2408:4003:1093:d933:908d:411d:fc28:d28f]:3001")
+
+	// 若失败，尝试打洞
+	if !isSuccess {
+		fmt.Println("ipv6直连失败")
+		isSuccess = CreateP2pConn("47.112.96.50:3001")
+	}
 
 	/*
 		与浏览器建立webSocket连接
@@ -266,6 +300,21 @@ func main() {
 	})
 	http.ListenAndServe(":3001", nil)
 
+	// 通知浏览器，p2p连接是否成功
+	go func() {
+		for {
+			if browserConn == nil {
+				continue
+			}
+			if !isSuccess {
+				fmt.Println("tcp打洞失败")
+				NotifyIfSuccess("fail")
+				browserConn.Close()
+			} else {
+				NotifyIfSuccess("success")
+			}
+		}
+	}()
 	time.Sleep(time.Hour)
 }
 
