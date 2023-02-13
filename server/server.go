@@ -94,7 +94,7 @@ func WriteBackUuid(conn net.Conn, uuid string) {
 }
 
 func main() {
-	address := ":3002"
+	address := ":3001"
 	listener, err := reuseport.Listen("tcp", address)
 	if err != nil {
 		panic("服务端监听失败" + err.Error())
