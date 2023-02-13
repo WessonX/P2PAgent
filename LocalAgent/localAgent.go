@@ -93,7 +93,7 @@ func (s *Handler) DailP2P(address string) bool {
 			break
 		}
 		time.Sleep(time.Second)
-		conn, err = reuseport.Dial("tcp6", fmt.Sprintf("[::]:%d", s.LocalPort), address)
+		conn, err = reuseport.Dial("tcp", fmt.Sprintf("[::]:%d", s.LocalPort), address)
 		if err != nil {
 			fmt.Println("请求第", errCount, "次地址失败,用户地址:", address, "error:", err.Error())
 			errCount++
@@ -190,6 +190,10 @@ func (s *Handler) P2PRead() {
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024 * 1024 * 1024,
 	WriteBufferSize: 1024 * 1024 * 1024,
+	// 解决跨域问题
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
 }
 
 // 接受来自浏览器的请求，并返回rsp
