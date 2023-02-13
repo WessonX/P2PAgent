@@ -242,20 +242,19 @@ func main() {
 		与对端节点建立p2p连接
 	*/
 
-	// 指定本地端口
-	localPort := 3002
-	// 向 P2P 转发服务器注册自己的临时生成的公网 IP (请注意,Dial 这里拨号指定了自己临时生成的本地端口)
-	serverConn, err := reuseport.Dial("tcp6", fmt.Sprintf("[::]:%d", localPort), "[2408:4003:1093:d933:908d:411d:fc28:d28f]:3001")
-	if err != nil {
-		panic("请求远程服务器失败:" + err.Error())
+	// 先尝试ipv6连接
+	isSuccess := CreateP2pConn("[2408:4003:1093:d933:908d:411d:fc28:d28f]:3001")
+
+	// 若失败，尝试打洞
+	if !isSuccess {
+		fmt.Println("ipv6直连失败")
+		isSuccess = CreateP2pConn("47.112.96.50:3001")
 	}
-	fmt.Println("请求远程服务器成功...")
-	p2phandler = &P2PHandler{ServerConn: serverConn, LocalPort: int(localPort), remain_cnt: 0}
-	// 获取uuid
-	uuid := p2phandler.getUUID()
-	fmt.Println("uuid:", uuid)
-	p2phandler.WaitNotify()
+
+	// 若失败，则断开与ros_server的连接；浏览器会直接通过frp连接ros_server
+	if !isSuccess {
+		rosConn.Close()
+	}
 
 	time.Sleep(time.Hour)
-
 }
