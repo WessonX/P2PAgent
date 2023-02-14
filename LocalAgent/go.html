@@ -27,48 +27,75 @@
   </div>
 
 <script type="text/javascript">
+    //全局变量 
+    var ros
+    var gridClient 
+    var viewer
 
-    // Connect to ROS.
-    var ros = new ROSLIB.Ros({
-      // url : 'ws://47.112.96.50:9090'
-      url : 'ws://localhost:3001/echo'
-    });
-    
-    // Create the main viewer.
-    var viewer = new ROS2D.Viewer({
-      divID : 'map',
-      width : 600,
-      height : 500
-    });
-    
-    // Setup the map client.
-    var gridClient = new ROS2D.OccupancyGridClient({
-      ros : ros,
-      rootObject : viewer.scene
-    });
-    // Scale the canvas to fit to the map
-    gridClient.on('change', function(){
-      viewer.scaleToDimensions(gridClient.currentGrid.width, gridClient.currentGrid.height);
-    });
-    ros.on('connection', function() {
-        console.log('Connected to websocket server.');
+    // ros相关的初始化
+    function initializeRos(addr) {
+      ros = new ROSLIB.Ros({
+        url : addr
       });
-    
-    ros.on('error', function(error) {
-      console.log('Error connecting to websocket server: ', error);
-    });
-    
-    ros.on('close', function() {
-      console.log('Connection to websocket server closed.');
-    });
+          // Create the main viewer.
+      viewer = new ROS2D.Viewer({
+        divID : 'map',
+        width : 600,
+        height : 500
+      });
+      
+      // Setup the map client.
+      gridClient = new ROS2D.OccupancyGridClient({
+        ros : ros,
+        rootObject : viewer.scene
+      });
+      // Scale the canvas to fit to the map
+      gridClient.on('change', function(){
+        viewer.scaleToDimensions(gridClient.currentGrid.width, gridClient.currentGrid.height);
+      });
+      ros.on('connection', function() {
+          console.log('Connected to websocket server.');
+        });
+      
+      ros.on('error', function(error) {
+        console.log('Error connecting to websocket server: ', error);
+      });
+      
+      ros.on('close', function() {
+        console.log('Connection to websocket server closed.');
+      });
+    }
 
+    //与localAgent建立连接
+    var socket = new WebSocket("ws://localhost:3001/echo");
 
+    // // localAgent与RosAgent是否连接成功
+    var isSuccess = "fail"
+
+    socket.onopen = function () {
+      console.log("connected to localAgent")
+    };
+
+    socket.onmessage = function(e) {
+      var obj = JSON.parse(e.data)
+      isSuccess = obj.isSuccess
+      var addr
+      // 如果成功，则和localAgent建立连接
+      if (isSuccess == "success" ) {
+         addr = 'ws://localhost:3001/echo'
+      } else {
+        // 不成功，则通过frp建立ros连接
+         addr = 'ws://47.112.96.50:9090'
+      }
+      initializeRos(addr)
+    }
 </script>
 
 <script type="text/javascript">
   //获取canvas
   var can = document.getElementsByTagName('canvas');
-  can = can[1];
+  console.log(can)
+  can = can[0];
   //画笔
   var ctx = can.getContext("2d");
   ctx.globalCompositeOperation = 'source-over';
