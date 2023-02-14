@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"syscall"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/libp2p/go-reuseport"
+	"golang.org/x/sys/unix"
 )
 
 var p2phandler *P2PHandler
@@ -59,6 +61,22 @@ func (s *P2PHandler) WaitNotify() string {
 	return data["address"]
 }
 
+func MyControl(network, address string, c syscall.RawConn) error {
+	var err error
+	c.Control(func(fd uintptr) {
+		err = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEADDR, 1)
+		if err != nil {
+			return
+		}
+
+		err = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEPORT, 1)
+		if err != nil {
+			return
+		}
+	})
+	return err
+}
+
 // DailP2PAndSayHello 连接对方临时的公网地址,并且不停的发送数据
 func (s *P2PHandler) DailP2P(address string) bool {
 	var errCount = 1
@@ -69,8 +87,15 @@ func (s *P2PHandler) DailP2P(address string) bool {
 		if errCount > 3 {
 			break
 		}
-		time.Sleep(time.Second)
-		conn, err = reuseport.Dial("tcp", fmt.Sprintf("[::]:%d", s.LocalPort), address)
+		d := net.Dialer{
+			Timeout: 100 * time.Millisecond,
+			LocalAddr: &net.TCPAddr{
+				IP:   net.ParseIP("0.0.0.0"),
+				Port: s.LocalPort,
+			},
+			Control: MyControl,
+		}
+		conn, err = d.Dial("tcp", address)
 		if err != nil {
 			fmt.Println("请求第", errCount, "次地址失败,用户地址:", address, "error:", err.Error())
 			errCount++

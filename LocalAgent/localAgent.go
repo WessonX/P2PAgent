@@ -1,6 +1,7 @@
 package main
 
 import (
+	"P2PAgent/utils"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
@@ -8,12 +9,12 @@ import (
 	"math/big"
 	"net"
 	"net/http"
+	"syscall"
 	"time"
-
-	"P2PAgent/utils"
 
 	"github.com/gorilla/websocket"
 	"github.com/libp2p/go-reuseport"
+	"golang.org/x/sys/unix"
 )
 
 /*
@@ -82,6 +83,22 @@ func (s *Handler) WaitNotify() string {
 	return data["address"]
 }
 
+func MyControl(network, address string, c syscall.RawConn) error {
+	var err error
+	c.Control(func(fd uintptr) {
+		err = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEADDR, 1)
+		if err != nil {
+			return
+		}
+
+		err = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEPORT, 1)
+		if err != nil {
+			return
+		}
+	})
+	return err
+}
+
 // DailP2P 连接对方临时的公网地址,并且不停的发送数据
 func (s *Handler) DailP2P(address string) bool {
 	var errCount = 1
@@ -92,8 +109,16 @@ func (s *Handler) DailP2P(address string) bool {
 		if errCount > 3 {
 			break
 		}
-		time.Sleep(time.Second)
-		conn, err = reuseport.Dial("tcp", fmt.Sprintf("[::]:%d", s.LocalPort), address)
+
+		d := net.Dialer{
+			Timeout: 100 * time.Millisecond,
+			LocalAddr: &net.TCPAddr{
+				IP:   net.ParseIP("0.0.0.0"),
+				Port: s.LocalPort,
+			},
+			Control: MyControl,
+		}
+		conn, err = d.Dial("tcp", address)
 		if err != nil {
 			fmt.Println("请求第", errCount, "次地址失败,用户地址:", address, "error:", err.Error())
 			errCount++
@@ -240,8 +265,9 @@ func NotifyIfSuccess(isSuccess string) {
 	body, _ := json.Marshal(data)
 	err := browserConn.WriteMessage(websocket.TextMessage, body)
 	if err != nil {
-		panic("通知浏览器p2p连接是否成功，失败:" + err.Error())
+		panic("通知浏览器p2p连接是否成功，fail:" + err.Error())
 	}
+	fmt.Println("成功通知浏览器，p2p连接是否成功:", isSuccess)
 }
 
 /*
@@ -261,7 +287,6 @@ func CreateP2pConn(relayAddr string) bool {
 		fmt.Println("连接失败:" + err.Error())
 		return false
 	}
-	fmt.Println("请求远程服务器成功...")
 	handler = &Handler{ServerConn: serverConn, LocalPort: int(localPort), remain_cnt: 0}
 
 	// 获取uuid
@@ -293,17 +318,6 @@ func main() {
 		isSuccess = CreateP2pConn("47.112.96.50:3001")
 	}
 
-	/*
-		与浏览器建立webSocket连接
-	*/
-	fmt.Println("localAgent is listening on 3001")
-	http.HandleFunc("/echo", httpHandler)
-
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "go.html")
-	})
-	http.ListenAndServe(":3001", nil)
-
 	// 通知浏览器，p2p连接是否成功
 	go func() {
 		for {
@@ -314,11 +328,25 @@ func main() {
 				fmt.Println("tcp打洞失败")
 				NotifyIfSuccess("fail")
 				browserConn.Close()
+				break
 			} else {
 				NotifyIfSuccess("success")
+				break
 			}
 		}
 	}()
+
+	/*
+		与浏览器建立webSocket连接
+	*/
+	http.HandleFunc("/echo", httpHandler)
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "go.html")
+	})
+	http.ListenAndServe(":3001", nil)
+
+	fmt.Println("与浏览器成功建立websocket连接")
 	time.Sleep(time.Hour)
 }
 
