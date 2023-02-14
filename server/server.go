@@ -80,6 +80,9 @@ func (s *Handler) HandleReq(conn net.Conn) {
 		if err != nil {
 			fmt.Println("回传地址给rosAgent失败:", err.Error())
 		}
+		// 回传地址后，断开连接
+		conn.Close()
+		s.ClientPool[uuid].Conn.Close()
 	}
 }
 
