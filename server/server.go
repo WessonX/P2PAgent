@@ -84,6 +84,7 @@ func (s *Handler) HandleReq(c *Client) {
 			var dataForRosAgent = make(map[string]string)
 			dataForRosAgent["address"] = conn.RemoteAddr().String() // localAgent的公网地址
 			dataForLocalAgent["privAddr"] = c.PrivAddr              // localAgent的局域网地址
+			fmt.Println("localAgent的局域网地址:", dataForLocalAgent["privAddr"])
 			body, _ = json.Marshal(dataForRosAgent)
 			_, err = s.ClientPool[uuid].Conn.Write(body)
 			if err != nil {
