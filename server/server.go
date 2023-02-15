@@ -37,7 +37,7 @@ func (s *Handler) Handle() {
 			Address: conn.RemoteAddr().String(),
 		}
 		fmt.Println("一个客户端连接进去了,他的公网IP是", conn.RemoteAddr().String())
-		go WriteBackUuid(conn, id)
+		go WriteBackUidAndPubAddr(conn, id)
 		go s.HandleReq(conn)
 	}
 }
@@ -86,16 +86,17 @@ func (s *Handler) HandleReq(conn net.Conn) {
 	}
 }
 
-// 将分配的uuid回传给客户端
-func WriteBackUuid(conn net.Conn, uuid string) {
+// 将分配的uuid以及客户端的公网地址回传给客户端
+func WriteBackUidAndPubAddr(conn net.Conn, uuid string) {
 	var data = make(map[string]string)
 	data["uuid"] = uuid
+	data["pubAddr"] = conn.RemoteAddr().String()
 	body, _ := json.Marshal(data)
 	_, err := conn.Write(body)
 	if err != nil {
-		fmt.Println("回传uuid时出现了错误", err.Error())
+		fmt.Println("回传信息时出现了错误", err.Error())
 	}
-	fmt.Println("回传uuid给客户端:", conn.RemoteAddr().String())
+	fmt.Println("回传uuid和公网地址给客户端:", conn.RemoteAddr().String())
 }
 
 func main() {

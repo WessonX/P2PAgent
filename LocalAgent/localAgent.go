@@ -40,8 +40,8 @@ type Handler struct {
 	remain_cnt int
 }
 
-// 等待服务器回传我们的uuid
-func (s *Handler) getUUID() string {
+// 等待服务器回传我们的uuid和公网地址
+func (s *Handler) getUidAndPubAddr() (uuid string, pubAddr string) {
 	buffer := make([]byte, 1024)
 	n, err := s.ServerConn.Read(buffer)
 	if err != nil {
@@ -51,7 +51,7 @@ func (s *Handler) getUUID() string {
 	if err := json.Unmarshal(buffer[:n], &data); err != nil {
 		panic("获取uuid失败" + err.Error())
 	}
-	return data["uuid"]
+	return data["uuid"], data["publicAddr"]
 }
 
 func (s *Handler) requestForAddr(uuid string) {
@@ -290,8 +290,8 @@ func CreateP2pConn(relayAddr string) bool {
 	handler = &Handler{ServerConn: serverConn, LocalPort: int(localPort), remain_cnt: 0}
 
 	// 获取uuid
-	uuid := handler.getUUID()
-	fmt.Println("uuid:", uuid)
+	uuid, pubAddr := handler.getUidAndPubAddr()
+	fmt.Println("uuid:", uuid, " pubAddr:", pubAddr)
 
 	var uid string
 	fmt.Scanln(&uid)
