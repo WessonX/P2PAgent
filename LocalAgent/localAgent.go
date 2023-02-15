@@ -51,7 +51,7 @@ func (s *Handler) getUidAndPubAddr() (uuid string, pubAddr string) {
 	if err := json.Unmarshal(buffer[:n], &data); err != nil {
 		panic("获取uuid失败" + err.Error())
 	}
-	return data["uuid"], data["publicAddr"]
+	return data["uuid"], data["pubAddr"]
 }
 
 func (s *Handler) requestForAddr(uuid string) {

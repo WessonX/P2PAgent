@@ -40,7 +40,7 @@ func (s *P2PHandler) getUidAndPubAddr() (uuid string, pubAddr string) {
 	if err := json.Unmarshal(buffer[:n], &data); err != nil {
 		panic("获取uuid失败" + err.Error())
 	}
-	return data["uuid"], data["publicAddr"]
+	return data["uuid"], data["pubAddr"]
 }
 
 // WaitNotify 等待远程服务器发送通知告知我们另一个用户的公网IP
