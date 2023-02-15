@@ -263,8 +263,11 @@ func CreateP2pConn(relayAddr string) bool {
 	// 等待服务器回传对端节点的地址，并发起连接
 	rosPubAddr, rosPrivAddr := p2phandler.WaitNotify()
 	fmt.Println("对端的公网地址:", rosPubAddr, " 对端的局域网地址:", rosPrivAddr)
-	// 如果对端的公网地址和本机的相同，说明二者位于同一个局域网下
-	if localPubAddr == rosPubAddr {
+
+	// 如果对端的公网地址和本机的相同，说明二者位于同一个局域网下,则局域网直连
+	localIP, _ := net.ResolveTCPAddr("tcp", localPubAddr)
+	rosIP, _ := net.ResolveTCPAddr("tcp", rosPubAddr)
+	if string(localIP.IP) == string(rosIP.IP) {
 		fmt.Println("connecting within LAN")
 		return p2phandler.DailP2P(rosPrivAddr)
 	}
