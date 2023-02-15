@@ -60,7 +60,7 @@ func (s *Handler) getUidAndPubAddr() (uuid string, pubAddr string) {
 // 将局域网地址发送给中继服务器
 func (s *Handler) sendPrivAddr(privAddr string) {
 	var data = make(map[string]string)
-	data["privAddr"] = privAddr
+	data["privAddr"] = privAddr + fmt.Sprintf(":%d", s.LocalPort)
 	body, _ := json.Marshal(data)
 	_, err := s.ServerConn.Write(body)
 	if err != nil {
@@ -92,7 +92,6 @@ func (s *Handler) WaitNotify() (pubAddr string, privAddr string) {
 	if err := json.Unmarshal(buffer[:n], &data); err != nil {
 		panic("获取用户信息失败" + err.Error())
 	}
-	fmt.Println("客户端获取到了对方的地址:", data["address"])
 	// 断开服务器连接
 	defer s.ServerConn.Close()
 
@@ -309,8 +308,8 @@ func CreateP2pConn(relayAddr string) bool {
 	handler.sendPrivAddr(privAddr)
 
 	// 获取uuid和本机的公网地址
-	uuid, pubAddr := handler.getUidAndPubAddr()
-	fmt.Println("uuid:", uuid, " pubAddr:", pubAddr)
+	uuid, localPubAddr := handler.getUidAndPubAddr()
+	fmt.Println("uuid:", uuid, " pubAddr:", localPubAddr)
 
 	var uid string
 	fmt.Scanln(&uid)
@@ -318,9 +317,15 @@ func CreateP2pConn(relayAddr string) bool {
 	handler.requestForAddr(uid)
 
 	// 等待服务器回传对端节点的地址，并发起连接
-	pubAddr, privAddr := handler.WaitNotify()
-	fmt.Println("对端的公网地址:", pubAddr, " 对端的局域网地址:", privAddr)
-	return handler.DailP2P(pubAddr)
+	rosPubAddr, rosPrivAddr := handler.WaitNotify()
+	fmt.Println("对端的公网地址:", rosPubAddr, " 对端的局域网地址:", rosPrivAddr)
+
+	// 如果对端的公网地址和本机的相同，说明二者位于同一个局域网下,则局域网直连
+	if localPubAddr == rosPubAddr {
+		fmt.Println("connecting within LAN")
+		return handler.DailP2P(rosPrivAddr)
+	}
+	return handler.DailP2P(rosPubAddr)
 }
 
 func init() {
