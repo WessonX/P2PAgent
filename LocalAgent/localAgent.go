@@ -31,6 +31,9 @@ var browserConn *websocket.Conn
 // 记录局域网地址
 var privAddr string
 
+// 记录p2p连接是否成功
+var isSuccess bool
+
 type Handler struct {
 	// 中继服务器的连接句柄
 	ServerConn net.Conn
@@ -66,7 +69,7 @@ func (s *Handler) sendPrivAddr(privAddr string) {
 	if err != nil {
 		panic("发送局域网地址失败" + err.Error())
 	}
-	fmt.Println("向中继服务器发送局域网地址成功")
+	fmt.Println("向中继服务器发送局域网地址成功:", data["privAddr"])
 }
 
 // 向中继服务器请求目标uuid对应的公网地址
@@ -244,6 +247,14 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	browserConn = conn
 
+	// 通知浏览器，是否成功建立p2p连接
+	if !isSuccess {
+		fmt.Println("p2p连接失败")
+		NotifyIfSuccess("fail")
+		browserConn.Close()
+	} else {
+		NotifyIfSuccess("success")
+	}
 	fmt.Println("websocket连接建立成功，对端地址：", conn.RemoteAddr())
 	for {
 		// Read message from browser
@@ -350,31 +361,13 @@ func main() {
 	*/
 
 	// 先尝试ipv6连接
-	isSuccess := CreateP2pConn("[2408:4003:1093:d933:908d:411d:fc28:d28f]:3001")
+	isSuccess = CreateP2pConn("[2408:4003:1093:d933:908d:411d:fc28:d28f]:3001")
 
 	// 若失败，尝试打洞
 	if !isSuccess {
 		fmt.Println("ipv6直连失败")
 		isSuccess = CreateP2pConn("47.112.96.50:3001")
 	}
-
-	// 通知浏览器，p2p连接是否成功
-	go func() {
-		for {
-			if browserConn == nil {
-				continue
-			}
-			if !isSuccess {
-				fmt.Println("tcp打洞失败")
-				NotifyIfSuccess("fail")
-				browserConn.Close()
-				break
-			} else {
-				NotifyIfSuccess("success")
-				break
-			}
-		}
-	}()
 
 	/*
 		与浏览器建立webSocket连接
