@@ -28,6 +28,9 @@ var handler *Handler
 // 与浏览器建立的websocket连接
 var browserConn *websocket.Conn
 
+// 记录局域网地址
+var privAddr string
+
 type Handler struct {
 	// 中继服务器的连接句柄
 	ServerConn net.Conn
@@ -54,6 +57,19 @@ func (s *Handler) getUidAndPubAddr() (uuid string, pubAddr string) {
 	return data["uuid"], data["pubAddr"]
 }
 
+// 将局域网地址发送给中继服务器
+func (s *Handler) sendPrivAddr(privAddr string) {
+	var data = make(map[string]string)
+	data["privAddr"] = privAddr
+	body, _ := json.Marshal(data)
+	_, err := s.ServerConn.Write(body)
+	if err != nil {
+		panic("发送局域网地址失败" + err.Error())
+	}
+	fmt.Println("向中继服务器发送局域网地址成功")
+}
+
+// 向中继服务器请求目标uuid对应的公网地址
 func (s *Handler) requestForAddr(uuid string) {
 	var data = make(map[string]string)
 	data["targetUUID"] = uuid // 目标uuid
@@ -65,8 +81,8 @@ func (s *Handler) requestForAddr(uuid string) {
 	fmt.Println("向服务器发送请求，获取uuid为:", uuid, "的地址")
 }
 
-// WaitNotify 等待远程服务器发送通知告知我们另一个用户的公网IP
-func (s *Handler) WaitNotify() string {
+// WaitNotify 等待远程服务器发送通知告知我们另一个用户的公网IP和局域网IP
+func (s *Handler) WaitNotify() (pubAddr string, privAddr string) {
 	buffer := make([]byte, 1024)
 	n, err := s.ServerConn.Read(buffer)
 	if err != nil {
@@ -80,7 +96,7 @@ func (s *Handler) WaitNotify() string {
 	// 断开服务器连接
 	defer s.ServerConn.Close()
 
-	return data["address"]
+	return data["address"], data["privAddr"]
 }
 
 func MyControl(network, address string, c syscall.RawConn) error {
@@ -289,7 +305,10 @@ func CreateP2pConn(relayAddr string) bool {
 	}
 	handler = &Handler{ServerConn: serverConn, LocalPort: int(localPort), remain_cnt: 0}
 
-	// 获取uuid
+	// 发送局域网地址给中继服务器
+	handler.sendPrivAddr(privAddr)
+
+	// 获取uuid和本机的公网地址
 	uuid, pubAddr := handler.getUidAndPubAddr()
 	fmt.Println("uuid:", uuid, " pubAddr:", pubAddr)
 
@@ -299,9 +318,23 @@ func CreateP2pConn(relayAddr string) bool {
 	handler.requestForAddr(uid)
 
 	// 等待服务器回传对端节点的地址，并发起连接
-	targetAddr := handler.WaitNotify()
+	pubAddr, privAddr := handler.WaitNotify()
+	fmt.Println("对端的公网地址:", pubAddr, " 对端的局域网地址:", privAddr)
+	return handler.DailP2P(pubAddr)
+}
 
-	return handler.DailP2P(targetAddr)
+func init() {
+	//获取局域网地址
+	addrs, _ := net.InterfaceAddrs()
+	for _, addr := range addrs {
+		// 检查ip地址判断是否回环地址
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				privAddr = ipnet.IP.String()
+				fmt.Println("privAddr:", privAddr)
+			}
+		}
+	}
 }
 
 func main() {

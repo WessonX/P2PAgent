@@ -16,6 +16,9 @@ import (
 var p2phandler *P2PHandler
 var roshandler *RosHandler
 
+// 记录局域网地址
+var privAddr string
+
 // p2p连接的结构体
 type P2PHandler struct {
 	// 中继服务器的连接句柄
@@ -43,8 +46,20 @@ func (s *P2PHandler) getUidAndPubAddr() (uuid string, pubAddr string) {
 	return data["uuid"], data["pubAddr"]
 }
 
+// 将局域网地址发送给中继服务器
+func (s *P2PHandler) sendPrivAddr(privAddr string) {
+	var data = make(map[string]string)
+	data["privAddr"] = privAddr
+	body, _ := json.Marshal(data)
+	_, err := s.ServerConn.Write(body)
+	if err != nil {
+		panic("发送局域网地址失败" + err.Error())
+	}
+	fmt.Println("向中继服务器发送局域网地址成功")
+}
+
 // WaitNotify 等待远程服务器发送通知告知我们另一个用户的公网IP
-func (s *P2PHandler) WaitNotify() string {
+func (s *P2PHandler) WaitNotify() (pubAddr string, privAddr string) {
 	buffer := make([]byte, 1024)
 	n, err := s.ServerConn.Read(buffer)
 	if err != nil {
@@ -58,7 +73,7 @@ func (s *P2PHandler) WaitNotify() string {
 	// 断开服务器连接
 	defer s.ServerConn.Close()
 	// 请求用户的临时公网IP 以及uid
-	return data["address"]
+	return data["address"], data["privAddr"]
 }
 
 func MyControl(network, address string, c syscall.RawConn) error {
@@ -240,14 +255,30 @@ func CreateP2pConn(relayAddr string) bool {
 	fmt.Println("请求远程服务器成功...")
 	p2phandler = &P2PHandler{ServerConn: serverConn, LocalPort: int(localPort), remain_cnt: 0}
 
+	// 发送局域网地址给中继服务器
+	p2phandler.sendPrivAddr(privAddr)
 	// 获取uuid
 	uuid, pubAddr := p2phandler.getUidAndPubAddr()
 	fmt.Println("uuid:", uuid, " pubAddr:", pubAddr)
 
 	// 等待服务器回传对端节点的地址，并发起连接
-	targetAddr := p2phandler.WaitNotify()
+	pubAddr, privAddr := p2phandler.WaitNotify()
+	fmt.Println("对端的公网地址:", pubAddr, " 对端的局域网地址:", privAddr)
+	return p2phandler.DailP2P(pubAddr)
+}
 
-	return p2phandler.DailP2P(targetAddr)
+func init() {
+	//获取局域网地址
+	addrs, _ := net.InterfaceAddrs()
+	for _, addr := range addrs {
+		// 检查ip地址判断是否回环地址
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				privAddr = ipnet.IP.String()
+				fmt.Println("privAddr:", privAddr)
+			}
+		}
+	}
 }
 
 func main() {
