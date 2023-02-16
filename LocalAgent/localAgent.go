@@ -121,7 +121,10 @@ func CreateP2pConn(relayAddr string) bool {
 	localAgent = &agent.Agent{ServerConn: serverConn, LocalPort: int(localPort), Remain_cnt: 0, ChannelData: ch}
 
 	// 发送局域网地址给中继服务器
-	agent.SendPrivAddr(localAgent, privAddr)
+	err = agent.SendPrivAddr(localAgent, privAddr)
+	if err != nil {
+		panic("发送局域网地址给中继服务器失败" + err.Error())
+	}
 
 	// 获取uuid和本机的公网地址
 	uuid, localPubAddr := agent.GetUidAndPubAddr(localAgent)
@@ -129,8 +132,12 @@ func CreateP2pConn(relayAddr string) bool {
 
 	var uid string
 	fmt.Scanln(&uid)
+
 	// 请求获取指定uuid的地址
-	agent.RequestForAddr(localAgent, uid)
+	err = agent.RequestForAddr(localAgent, uid)
+	if err != nil {
+		panic("请求获取指定uuid的地址失败" + err.Error())
+	}
 
 	// 等待服务器回传对端节点的地址，并发起连接
 	rosPubAddr, rosPrivAddr := agent.WaitNotify(localAgent)

@@ -39,27 +39,27 @@ func GetUidAndPubAddr(s *Agent) (uuid string, pubAddr string) {
 }
 
 // 将局域网地址发送给中继服务器
-func SendPrivAddr(s *Agent, privAddr string) {
+func SendPrivAddr(s *Agent, privAddr string) error {
 	var data = make(map[string]string)
 	data["privAddr"] = privAddr + fmt.Sprintf(":%d", s.LocalPort)
 	body, _ := json.Marshal(data)
 	_, err := s.ServerConn.Write(body)
 	if err != nil {
-		panic("发送局域网地址失败" + err.Error())
+		return err
 	}
-	fmt.Println("向中继服务器发送局域网地址成功:", data["privAddr"])
+	return nil
 }
 
 // 向中继服务器请求目标uuid对应的公网地址
-func RequestForAddr(s *Agent, uuid string) {
+func RequestForAddr(s *Agent, uuid string) error {
 	var data = make(map[string]string)
 	data["targetUUID"] = uuid // 目标uuid
 	body, _ := json.Marshal(data)
 	_, err := s.ServerConn.Write(body)
 	if err != nil {
-		panic("发送requestForAddr请求失败" + err.Error())
+		return err
 	}
-	fmt.Println("向服务器发送请求，获取uuid为:", uuid, "的地址")
+	return nil
 }
 
 // WaitNotify 等待远程服务器发送通知告知我们另一个用户的公网IP和局域网IP

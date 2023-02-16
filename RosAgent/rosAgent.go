@@ -73,7 +73,10 @@ func CreateP2pConn(relayAddr string) bool {
 	rosAgent = &agent.Agent{ServerConn: serverConn, LocalPort: int(localPort), Remain_cnt: 0, ChannelData: ch}
 
 	// 发送局域网地址给中继服务器
-	agent.SendPrivAddr(rosAgent, privAddr)
+	err = agent.SendPrivAddr(rosAgent, privAddr)
+	if err != nil {
+		panic("发送局域网地址给中继服务器失败" + err.Error())
+	}
 
 	// 获取uuid
 	uuid, localPubAddr := agent.GetUidAndPubAddr(rosAgent)
