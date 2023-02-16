@@ -141,7 +141,8 @@ func CreateP2pConn(relayAddr string) bool {
 	rosIP, _ := net.ResolveTCPAddr("tcp", rosPubAddr)
 	if string(localIP.IP) == string(rosIP.IP) {
 		fmt.Println("connecting within LAN")
-		return agent.DailP2P(localAgent, rosPrivAddr)
+		// 如果局域网直连失败，再尝试打洞
+		return agent.DailP2P(localAgent, rosPrivAddr) || agent.DailP2P(localAgent, rosPubAddr)
 	}
 	return agent.DailP2P(localAgent, rosPubAddr)
 }
