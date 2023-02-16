@@ -110,7 +110,6 @@ func DailP2P(s *Agent, address string) bool {
 		fmt.Println("客户端连接失败")
 		return false
 	}
-	fmt.Println("P2P连接成功")
 	s.P2PConn = conn
 	go P2PRead(s)
 	return true
