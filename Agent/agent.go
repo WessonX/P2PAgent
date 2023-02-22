@@ -73,8 +73,6 @@ func WaitNotify(s *Agent) (pubAddr string, privAddr string) {
 	if err := json.Unmarshal(buffer[:n], &data); err != nil {
 		panic("获取用户信息失败" + err.Error())
 	}
-	// 断开服务器连接
-	defer s.ServerConn.Close()
 
 	return data["address"], data["privAddr"]
 }
