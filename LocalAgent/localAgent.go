@@ -13,7 +13,6 @@ import (
 	agent "P2PAgent/Agent"
 
 	"github.com/gorilla/websocket"
-	"github.com/libp2p/go-reuseport"
 )
 
 /*
@@ -111,11 +110,20 @@ func CreateP2pConn(relayAddr string) bool {
 	localPort := randPort(10000, 50000)
 
 	// 向 P2P 转发服务器注册自己的公网 IP (请注意,Dial 这里拨号指定了自己临时生成的本地端口。如果用net.Dial方法，使用的端口是随机分配的，就无法穿透了)
-	serverConn, err = reuseport.Dial("tcp", fmt.Sprintf("[::]:%d", localPort), relayAddr)
+	d := net.Dialer{
+		Timeout: 100 * time.Millisecond,
+		LocalAddr: &net.TCPAddr{
+			IP:   net.ParseIP("0.0.0.0"),
+			Port: int(localPort),
+		},
+		Control: agent.Control,
+	}
+	serverConn, err = d.Dial("tcp", relayAddr)
 	if err != nil {
 		fmt.Println("连接失败:" + err.Error())
 		return false
 	}
+	fmt.Println("请求远程服务器成功...")
 
 	ch := make(chan string)
 	localAgent = &agent.Agent{ServerConn: serverConn, LocalPort: int(localPort), Remain_cnt: 0, ChannelData: ch}
