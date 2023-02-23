@@ -159,6 +159,7 @@ func CreateP2pConn(relayAddr string) bool {
 		// 如果局域网直连失败，再尝试打洞
 		return agent.DailP2P(localAgent, rosPrivAddr) || agent.DailP2P(localAgent, rosPubAddr)
 	}
+	fmt.Println("trying hole_punching")
 	return agent.DailP2P(localAgent, rosPubAddr)
 }
 
@@ -192,6 +193,7 @@ func main() {
 
 	// 如果p2p连接成功,则尝试从agent的通道中读取数据，并发送给浏览器
 	if isSuccess {
+		fmt.Println("P2P直连成功")
 		go func() {
 			for {
 				content := <-localAgent.ChannelData

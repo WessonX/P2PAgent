@@ -101,6 +101,7 @@ func CreateP2pConn(relayAddr string) bool {
 		// 如果局域网直连失败，再尝试打洞
 		return agent.DailP2P(rosAgent, rosPrivAddr) || agent.DailP2P(rosAgent, rosPubAddr)
 	}
+	fmt.Println("trying hole_punching")
 	return agent.DailP2P(rosAgent, rosPubAddr)
 }
 
@@ -122,14 +123,14 @@ func main() {
 	/*
 		与9090端口的ros_server建立websocket连接
 	*/
-	// dialer := websocket.Dialer{}
-	// rosConn, _, err := dialer.Dial("ws://127.0.0.1:9090", nil)
-	// if err != nil {
-	// 	panic("连接ros_server失败" + err.Error())
-	// }
-	// fmt.Println("连接ros_server成功")
-	// roshandler = &RosHandler{RosConn: rosConn}
-	// go roshandler.rosRead()
+	dialer := websocket.Dialer{}
+	rosConn, _, err := dialer.Dial("ws://127.0.0.1:9090", nil)
+	if err != nil {
+		panic("连接ros_server失败" + err.Error())
+	}
+	fmt.Println("连接ros_server成功")
+	roshandler = &RosHandler{RosConn: rosConn}
+	go roshandler.rosRead()
 
 	/*
 		与对端节点建立p2p连接
@@ -146,8 +147,9 @@ func main() {
 
 	// 若失败，则断开与ros_server的连接；浏览器会直接通过frp连接ros_server
 	if !isSuccess {
-		// rosConn.Close()
+		rosConn.Close()
 	} else {
+		fmt.Println("p2p直连成功")
 		// 若成功，则从rosAgent的channelDate中读取数据，发送给ros_server
 		go func() {
 			content := <-rosAgent.ChannelData
