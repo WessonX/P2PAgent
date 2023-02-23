@@ -210,6 +210,11 @@
       header:header_top,
       poses:poseArray
     });
+
+    // 发完一次消息后，要将路径消息清空，准备下一条路径
+    drawBoard.points = []
+
+    // 发布消息
     mapPoints.publish(message);
     console.log(message);
   }
