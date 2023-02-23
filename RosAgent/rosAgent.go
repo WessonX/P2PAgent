@@ -62,7 +62,7 @@ func CreateP2pConn(relayAddr string) bool {
 
 	// 向 P2P 转发服务器注册自己的公网 IP (请注意,Dial 这里拨号指定了自己临时生成的本地端口。如果用net.Dial方法，使用的端口是随机分配的，就无法穿透了)
 	d := net.Dialer{
-		Timeout: 100 * time.Millisecond,
+		Timeout: 1 * time.Second,
 		LocalAddr: &net.TCPAddr{
 			IP:   net.ParseIP("0.0.0.0"),
 			Port: int(localPort),

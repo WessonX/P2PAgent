@@ -89,7 +89,7 @@ func DailP2P(s *Agent, address string) bool {
 		}
 
 		d := net.Dialer{
-			Timeout: 100 * time.Millisecond,
+			Timeout: 1 * time.Second,
 			LocalAddr: &net.TCPAddr{
 				IP:   net.ParseIP("0.0.0.0"),
 				Port: s.LocalPort,
