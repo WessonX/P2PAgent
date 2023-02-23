@@ -152,12 +152,14 @@ func main() {
 		fmt.Println("p2p直连成功")
 		// 若成功，则从rosAgent的channelDate中读取数据，发送给ros_server
 		go func() {
-			content := <-rosAgent.ChannelData
-			err := roshandler.RosConn.WriteMessage(websocket.TextMessage, []byte(content))
-			if err != nil {
-				fmt.Println("发送数据给ros_server失败:", err.Error())
-			} else {
-				fmt.Println("发送数据给ros_server成功")
+			for {
+				content := <-rosAgent.ChannelData
+				err := roshandler.RosConn.WriteMessage(websocket.TextMessage, []byte(content))
+				if err != nil {
+					fmt.Println("发送数据给ros_server失败:", err.Error())
+				} else {
+					fmt.Println("发送数据给ros_server成功")
+				}
 			}
 		}()
 	}
