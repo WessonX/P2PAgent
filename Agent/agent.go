@@ -41,6 +41,7 @@ func GetUidAndPubAddr(s *Agent) (uuid string, pubAddr string) {
 // 将局域网地址和uuid发送给中继服务器
 func SendPrivAddrAndUUID(s *Agent, privAddr string, uuid string) error {
 	var data = make(map[string]string)
+	data["method"] = "recvUUIDAndPrivAddr"
 	data["privAddr"] = privAddr + fmt.Sprintf(":%d", s.LocalPort)
 	data["uuid"] = uuid
 	body, _ := json.Marshal(data)
@@ -54,6 +55,7 @@ func SendPrivAddrAndUUID(s *Agent, privAddr string, uuid string) error {
 // 向中继服务器请求目标uuid对应的公网地址
 func RequestForAddr(s *Agent, uuid string) error {
 	var data = make(map[string]string)
+	data["method"] = "exchangeInfo"
 	data["targetUUID"] = uuid // 目标uuid
 	body, _ := json.Marshal(data)
 	_, err := s.ServerConn.Write(body)
