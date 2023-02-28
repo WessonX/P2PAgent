@@ -38,10 +38,11 @@ func GetUidAndPubAddr(s *Agent) (uuid string, pubAddr string) {
 	return data["uuid"], data["pubAddr"]
 }
 
-// 将局域网地址发送给中继服务器
-func SendPrivAddr(s *Agent, privAddr string) error {
+// 将局域网地址和uuid发送给中继服务器
+func SendPrivAddrAndUUID(s *Agent, privAddr string, uuid string) error {
 	var data = make(map[string]string)
 	data["privAddr"] = privAddr + fmt.Sprintf(":%d", s.LocalPort)
+	data["uuid"] = uuid
 	body, _ := json.Marshal(data)
 	_, err := s.ServerConn.Write(body)
 	if err != nil {
@@ -62,8 +63,8 @@ func RequestForAddr(s *Agent, uuid string) error {
 	return nil
 }
 
-// WaitNotify 等待远程服务器发送通知告知我们另一个用户的公网IP和局域网IP
-func WaitNotify(s *Agent) (pubAddr string, privAddr string) {
+// WaitNotify 等待远程服务器发送通知告知我们另一个用户的公网IP和局域网IP,以及是否需要降级（由ipv6降为ipv4）
+func WaitNotify(s *Agent) (pubAddr string, privAddr string, shouldDownGrade string) {
 	buffer := make([]byte, 1024)
 	n, err := s.ServerConn.Read(buffer)
 	if err != nil {
@@ -74,7 +75,7 @@ func WaitNotify(s *Agent) (pubAddr string, privAddr string) {
 		panic("获取用户信息失败" + err.Error())
 	}
 
-	return data["address"], data["privAddr"]
+	return data["address"], data["privAddr"], data["shouldDownGrade"]
 }
 
 // DailP2P 连接对方临时的公网地址,并且不停的发送数据

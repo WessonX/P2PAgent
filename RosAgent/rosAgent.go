@@ -2,8 +2,11 @@ package main
 
 import (
 	agent "P2PAgent/Agent"
+	"P2PAgent/utils"
+	"bufio"
 	"fmt"
 	"net"
+	"os"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -17,6 +20,9 @@ var roshandler *RosHandler
 
 // 记录局域网地址
 var privAddr string
+
+// 记录uuid
+var uuid string
 
 type RosHandler struct {
 	// 与ros_server的连接
@@ -79,18 +85,26 @@ func CreateP2pConn(relayAddr string) bool {
 	ch := make(chan string)
 	rosAgent = &agent.Agent{ServerConn: serverConn, LocalPort: int(localPort), Remain_cnt: 0, ChannelData: ch}
 
-	// 发送局域网地址给中继服务器
-	err = agent.SendPrivAddr(rosAgent, privAddr)
+	// 发送局域网地址和本机的uuid给中继服务器
+	err = agent.SendPrivAddrAndUUID(rosAgent, privAddr, uuid)
 	if err != nil {
-		panic("发送局域网地址给中继服务器失败" + err.Error())
+		panic("发送局域网地址和uuid给中继服务器失败" + err.Error())
 	}
 
-	// 获取uuid
-	uuid, localPubAddr := agent.GetUidAndPubAddr(rosAgent)
-	fmt.Println("uuid:", uuid, " pubAddr:", localPubAddr)
+	// 获取uuid和本机的公网地址
+	id, localPubAddr := agent.GetUidAndPubAddr(rosAgent)
+	fmt.Println("uuid:", id, " pubAddr:", localPubAddr)
+	// 将uuid保存到本地
+	if uuid == "" {
+		uuid = id
+		utils.SaveUUID(uuid)
+	}
 
 	// 等待服务器回传对端节点的地址，并发起连接
-	rosPubAddr, rosPrivAddr := agent.WaitNotify(rosAgent)
+	rosPubAddr, rosPrivAddr, shouldDownGrade := agent.WaitNotify(rosAgent)
+	if shouldDownGrade == "true" {
+		return false
+	}
 	fmt.Println("对端的公网地址:", rosPubAddr, " 对端的局域网地址:", rosPrivAddr)
 
 	// 如果对端的公网地址和本机的相同，说明二者位于同一个局域网下,则局域网直连
@@ -117,6 +131,17 @@ func init() {
 			}
 		}
 	}
+
+	//读取uuid文件
+	filePath := "./uuid.txt"
+	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_RDWR, 0666)
+	if err != nil {
+		panic("文件打开失败")
+	}
+	defer file.Close()
+
+	reader := bufio.NewReader(file)
+	uuid, _ = reader.ReadString('\n')
 }
 
 func main() {
@@ -147,7 +172,7 @@ func main() {
 
 	// 若失败，则断开与ros_server的连接；浏览器会直接通过frp连接ros_server
 	if !isSuccess {
-		rosConn.Close()
+		// rosConn.Close()
 	} else {
 		fmt.Println("p2p直连成功")
 		// 若成功，则从rosAgent的channelDate中读取数据，发送给ros_server

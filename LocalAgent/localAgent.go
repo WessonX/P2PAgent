@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
@@ -8,9 +9,11 @@ import (
 	"math/big"
 	"net"
 	"net/http"
+	"os"
 	"time"
 
 	agent "P2PAgent/Agent"
+	"P2PAgent/utils"
 
 	"github.com/gorilla/websocket"
 )
@@ -28,6 +31,9 @@ var browserConn *websocket.Conn
 
 // 记录局域网地址
 var privAddr string
+
+// 记录uuid
+var uuid string
 
 // 记录p2p连接是否成功
 var isSuccess bool
@@ -128,15 +134,20 @@ func CreateP2pConn(relayAddr string) bool {
 	ch := make(chan string)
 	localAgent = &agent.Agent{ServerConn: serverConn, LocalPort: int(localPort), Remain_cnt: 0, ChannelData: ch}
 
-	// 发送局域网地址给中继服务器
-	err = agent.SendPrivAddr(localAgent, privAddr)
+	// 发送局域网地址和本机的uuid给中继服务器
+	err = agent.SendPrivAddrAndUUID(localAgent, privAddr, uuid)
 	if err != nil {
-		panic("发送局域网地址给中继服务器失败" + err.Error())
+		panic("发送局域网地址和uuid给中继服务器失败" + err.Error())
 	}
 
 	// 获取uuid和本机的公网地址
-	uuid, localPubAddr := agent.GetUidAndPubAddr(localAgent)
-	fmt.Println("uuid:", uuid, " pubAddr:", localPubAddr)
+	id, localPubAddr := agent.GetUidAndPubAddr(localAgent)
+	fmt.Println("uuid:", id, " pubAddr:", localPubAddr)
+	// 将uuid保存到本地
+	if uuid == "" {
+		uuid = id
+		utils.SaveUUID(uuid)
+	}
 
 	var uid string
 	fmt.Scanln(&uid)
@@ -148,7 +159,11 @@ func CreateP2pConn(relayAddr string) bool {
 	}
 
 	// 等待服务器回传对端节点的地址，并发起连接
-	rosPubAddr, rosPrivAddr := agent.WaitNotify(localAgent)
+	rosPubAddr, rosPrivAddr, shouldDownGrade := agent.WaitNotify(localAgent)
+	// 如果需要降级
+	if shouldDownGrade == "true" {
+		return false
+	}
 	fmt.Println("对端的公网地址:", rosPubAddr, " 对端的局域网地址:", rosPrivAddr)
 
 	// 如果对端的公网地址和本机的相同，说明二者位于同一个局域网下,则局域网直连
@@ -175,6 +190,17 @@ func init() {
 			}
 		}
 	}
+
+	//读取uuid文件
+	filePath := "./uuid.txt"
+	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_RDWR, 0666)
+	if err != nil {
+		panic("文件打开失败")
+	}
+	defer file.Close()
+
+	reader := bufio.NewReader(file)
+	uuid, _ = reader.ReadString('\n')
 }
 
 func main() {

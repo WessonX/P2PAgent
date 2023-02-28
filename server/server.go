@@ -1,6 +1,7 @@
 package main
 
 import (
+	"P2PAgent/utils"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -38,16 +39,49 @@ func (s *Handler) Handle() {
 			fmt.Println("获取连接句柄失败", err.Error())
 			continue
 		}
-		id := uuid.New()
-		s.ClientPool[id] = &Client{
-			UID:     id,
+		c := &Client{
 			Conn:    conn,
 			Address: conn.RemoteAddr().String(),
 		}
 		fmt.Println("一个客户端连接进去了,他的公网IP是", conn.RemoteAddr().String())
-		go WriteBackUidAndPubAddr(conn, id)
-		go s.HandleReq(s.ClientPool[id])
+		// 等待接收客户端传来的uuid（可能为空）和privAddr
+		s.recvUUIDAndPrivAddr(c)
+
+		// 将uuid和pubAddr回传给客户端
+		go WriteBackUidAndPubAddr(conn, c.UID)
+
+		// 响应来自客户端的请求
+		go s.HandleReq(c)
 	}
+}
+
+// 等待接收客户端传来的uuid和privAddr
+func (s *Handler) recvUUIDAndPrivAddr(c *Client) {
+	conn := c.Conn
+	buffer := make([]byte, 1024)
+	n, err := conn.Read(buffer)
+	if err != nil {
+		fmt.Println("读取失败" + err.Error())
+		return
+	}
+	data := make(map[string]string)
+	if err = json.Unmarshal(buffer[:n], &data); err != nil {
+		fmt.Println("获取uuid失败" + err.Error())
+		return
+	}
+
+	if data["privAddr"] != "" {
+		c.PrivAddr = data["privAddr"]
+	}
+	if data["uuid"] != "" {
+		c.UID = data["uuid"]
+		s.ClientPool[c.UID] = c
+	} else {
+		uuid := uuid.New()
+		c.UID = uuid
+		s.ClientPool[uuid] = c
+	}
+
 }
 
 // 处理来自Agent的请求
@@ -70,8 +104,32 @@ func (s *Handler) HandleReq(c *Client) {
 			// 读取目标uuid
 			uuid := data["targetUUID"]
 
-			// 写回给localAgent
+			// 回传给localAgent的数据
 			var dataForLocalAgent = make(map[string]string)
+
+			// 回传给rosAGent的数据
+			var dataForRosAgent = make(map[string]string)
+
+			// 判断二者的网络类型是否一致
+			ros_type := utils.IsIpv4OrIpv6(s.ClientPool[uuid].Address)
+			local_type := utils.IsIpv4OrIpv6(conn.RemoteAddr().String())
+
+			// 如果二者的类型不一致
+			if ros_type != local_type {
+				// ros_agent需要降级
+				if ros_type == utils.IPV6 {
+					dataForRosAgent["shouldDownGrade"] = "true"
+					dataForLocalAgent["shouldDownGrade"] = "false"
+				}
+
+				// local_agent需要降级
+				if local_type == utils.IPV6 {
+					dataForLocalAgent["shouldDownGrade"] = "true"
+					dataForRosAgent["shouldDownGrade"] = "false"
+				}
+			}
+
+			// 写回给localAgent
 			dataForLocalAgent["address"] = s.ClientPool[uuid].Address   // rosAgent的公网地址
 			dataForLocalAgent["privAddr"] = s.ClientPool[uuid].PrivAddr // rosAgent的局域网地址
 			body, _ := json.Marshal(dataForLocalAgent)
@@ -81,7 +139,6 @@ func (s *Handler) HandleReq(c *Client) {
 			}
 
 			// 写回给rosAgent
-			var dataForRosAgent = make(map[string]string)
 			dataForRosAgent["address"] = conn.RemoteAddr().String() // localAgent的公网地址
 			dataForRosAgent["privAddr"] = c.PrivAddr                // localAgent的局域网地址
 			body, _ = json.Marshal(dataForRosAgent)
@@ -89,9 +146,6 @@ func (s *Handler) HandleReq(c *Client) {
 			if err != nil {
 				fmt.Println("回传地址给rosAgent失败:", err.Error())
 			}
-		}
-		if data["privAddr"] != "" {
-			c.PrivAddr = data["privAddr"]
 		}
 	}
 }
