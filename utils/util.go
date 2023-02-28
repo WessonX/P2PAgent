@@ -93,7 +93,7 @@ func IsIpv4OrIpv6(ip string) IPType {
 }
 
 func SaveUUID(uuid string) {
-	filePath := "./uuid.txt"
+	filePath := "../uuid.txt"
 	file, err := os.OpenFile(filePath, os.O_WRONLY, 0666)
 	if err != nil {
 		panic("文件打开失败")

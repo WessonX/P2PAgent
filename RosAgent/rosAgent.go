@@ -133,7 +133,7 @@ func init() {
 	}
 
 	//读取uuid文件
-	filePath := "./uuid.txt"
+	filePath := "../uuid.txt"
 	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
 		panic("文件打开失败")
