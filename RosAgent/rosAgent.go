@@ -172,7 +172,7 @@ func main() {
 
 	// 若失败，则断开与ros_server的连接；浏览器会直接通过frp连接ros_server
 	if !isSuccess {
-		// rosConn.Close()
+		rosConn.Close()
 	} else {
 		fmt.Println("p2p直连成功")
 		// 若成功，则从rosAgent的channelDate中读取数据，发送给ros_server
