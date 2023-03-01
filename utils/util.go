@@ -2,7 +2,9 @@ package utils
 
 import (
 	"bufio"
+	"fmt"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 )
@@ -92,6 +94,7 @@ func IsIpv4OrIpv6(ip string) IPType {
 	return ILLEGAL
 }
 
+// 将uuid存储到本地
 func SaveUUID(uuid string) {
 	filePath := "../uuid.txt"
 	file, err := os.OpenFile(filePath, os.O_WRONLY, 0666)
@@ -103,4 +106,21 @@ func SaveUUID(uuid string) {
 	write := bufio.NewWriter(file)
 	write.WriteString(uuid)
 	write.Flush()
+}
+
+// 获取当前的goroutine的id
+func GetGoid() int64 {
+	var (
+		buf [64]byte
+		n   = runtime.Stack(buf[:], false)
+		stk = strings.TrimPrefix(string(buf[:n]), "goroutine")
+	)
+
+	idField := strings.Fields(stk)[0]
+	id, err := strconv.Atoi(idField)
+	if err != nil {
+		panic(fmt.Errorf("can not get goroutine id: %v", err))
+	}
+
+	return int64(id)
 }

@@ -38,6 +38,9 @@ var uuid string
 // 记录p2p连接是否成功
 var isSuccess bool
 
+// 记录ros_agent的uuid的通道
+var rosUuid_chan chan string
+
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024 * 1024 * 1024,
 	WriteBufferSize: 1024 * 1024 * 1024,
@@ -49,21 +52,13 @@ var upgrader = websocket.Upgrader{
 
 // 接受来自浏览器的请求，并返回rsp
 func httpHandler(w http.ResponseWriter, r *http.Request) {
-	conn, error := upgrader.Upgrade(w, r, nil) // error ignored for sake of simplicity
+	conn, error := upgrader.Upgrade(w, r, nil)
 	if error != nil {
 		panic("websocket请求建立失败:" + error.Error())
 	}
 	browserConn = conn
 
-	// 通知浏览器，是否成功建立p2p连接
-	if !isSuccess {
-		fmt.Println("p2p连接失败")
-		NotifyIfSuccess("fail")
-		browserConn.Close()
-	} else {
-		NotifyIfSuccess("success")
-	}
-	fmt.Println("websocket连接建立成功，对端地址：", conn.RemoteAddr())
+	fmt.Println("websocket连接建立成功")
 	for {
 		// Read message from browser
 		_, msg, err := conn.ReadMessage()
@@ -74,20 +69,27 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 		// Print the message to the console
 		fmt.Printf(">读取到%d个字节,浏览器发来内容:%s\n", readCnt, string(msg))
 
-		// 自定义的包头
-		data_head := fmt.Sprintf("length:%-11d", readCnt)
+		// 如果建立好了p2p连接，就将浏览器传来的内容转发给对端节点
+		if isSuccess {
+			// 自定义的包头
+			data_head := fmt.Sprintf("length:%-11d", readCnt)
 
-		// 将包头和数据主体拼接
-		body := string(msg)
-		content := data_head + body
+			// 将包头和数据主体拼接
+			body := string(msg)
+			content := data_head + body
 
-		fmt.Println(content)
-		// 将消息转发给对端节点
-		writeCnt, err := localAgent.P2PConn.Write([]byte(content))
-		if err != nil {
-			panic("消息转发给对端节点失败" + err.Error())
+			fmt.Println(content)
+			// 将消息转发给对端节点
+			writeCnt, err := localAgent.P2PConn.Write([]byte(content))
+			if err != nil {
+				panic("消息转发给对端节点失败" + err.Error())
+			}
+			fmt.Println("消息转发给对端节点,大小:", writeCnt)
+		} else {
+			// 没建立好p2p连接，此时浏览器传来的内容是对端节点的uuid
+			rosUuid_chan <- string(msg)
+			fmt.Println("chan:", rosUuid_chan)
 		}
-		fmt.Println("消息转发给对端节点,大小:", writeCnt)
 
 	}
 }
@@ -106,9 +108,10 @@ func NotifyIfSuccess(isSuccess string) {
 
 /*
 relayAddr: 中继服务器的地址。如果是ipv4地址，则逻辑为tcp打洞；如果是ipv6地址，则逻辑为ipv6直连。
+target_uuid:连接对象的uuid
 bool:连接是否成功
 */
-func CreateP2pConn(relayAddr string) bool {
+func CreateP2pConn(relayAddr string, target_uuid string) bool {
 	var serverConn net.Conn
 	var err error
 
@@ -149,11 +152,8 @@ func CreateP2pConn(relayAddr string) bool {
 		utils.SaveUUID(uuid)
 	}
 
-	var uid string
-	fmt.Scanln(&uid)
-
 	// 请求获取指定uuid的地址
-	err = agent.RequestForAddr(localAgent, uid)
+	err = agent.RequestForAddr(localAgent, target_uuid)
 	if err != nil {
 		panic("请求获取指定uuid的地址失败" + err.Error())
 	}
@@ -191,6 +191,10 @@ func init() {
 		}
 	}
 
+	// 初始化存储对端uuid的通道
+	ch := make(chan string)
+	rosUuid_chan = ch
+
 	//读取uuid文件
 	filePath := "../uuid.txt"
 	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_RDWR, 0666)
@@ -205,16 +209,40 @@ func init() {
 
 func main() {
 	/*
+		与浏览器建立webSocket连接
+	*/
+	go func() {
+		http.HandleFunc("/echo", httpHandler)
+
+		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			http.ServeFile(w, r, "go.html")
+		})
+		http.ListenAndServe(":3000", nil)
+
+		fmt.Println("与浏览器成功建立websocket连接")
+	}()
+
+	/*
 		与对端节点建立p2p连接
 	*/
 
 	// 先尝试ipv6连接
-	isSuccess = CreateP2pConn("[2408:4003:1093:d933:908d:411d:fc28:d28f]:3001")
+	peer_id := <-rosUuid_chan
+	isSuccess = CreateP2pConn("[2408:4003:1093:d933:908d:411d:fc28:d28f]:3001", peer_id)
 
 	// 若失败，尝试打洞
 	if !isSuccess {
 		fmt.Println("ipv6直连失败")
-		isSuccess = CreateP2pConn("47.112.96.50:3001")
+		isSuccess = CreateP2pConn("47.112.96.50:3001", peer_id)
+	}
+
+	// 通知浏览器，是否成功建立p2p连接
+	if !isSuccess {
+		fmt.Println("p2p连接失败")
+		NotifyIfSuccess("fail")
+		browserConn.Close()
+	} else {
+		NotifyIfSuccess("success")
 	}
 
 	// 如果p2p连接成功,则尝试从agent的通道中读取数据，并发送给浏览器
@@ -232,17 +260,6 @@ func main() {
 			}
 		}()
 	}
-	/*
-		与浏览器建立webSocket连接
-	*/
-	http.HandleFunc("/echo", httpHandler)
-
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "go.html")
-	})
-	http.ListenAndServe(":3001", nil)
-
-	fmt.Println("与浏览器成功建立websocket连接")
 	time.Sleep(time.Hour)
 }
 
