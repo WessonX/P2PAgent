@@ -107,16 +107,8 @@ func CreateP2pConn(relayAddr string) bool {
 	}
 	fmt.Println("对端的公网地址:", rosPubAddr, " 对端的局域网地址:", rosPrivAddr)
 
-	// 如果对端的公网地址和本机的相同，说明二者位于同一个局域网下,则局域网直连
-	localIP, _ := net.ResolveTCPAddr("tcp", localPubAddr)
-	rosIP, _ := net.ResolveTCPAddr("tcp", rosPubAddr)
-	if string(localIP.IP) == string(rosIP.IP) {
-		fmt.Println("connecting within LAN")
-		// 如果局域网直连失败，再尝试打洞
-		return agent.DailP2P(rosAgent, rosPrivAddr) || agent.DailP2P(rosAgent, rosPubAddr)
-	}
-	fmt.Println("trying hole_punching")
-	return agent.DailP2P(rosAgent, rosPubAddr)
+	// 分别尝试连接对端的局域网地址和公网地址
+	return agent.DailP2P(rosAgent, rosPrivAddr) || agent.DailP2P(rosAgent, rosPubAddr)
 }
 
 func init() {
