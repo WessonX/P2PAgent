@@ -88,7 +88,6 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			// 没建立好p2p连接，此时浏览器传来的内容是对端节点的uuid
 			rosUuid_chan <- string(msg)
-			fmt.Println("chan:", rosUuid_chan)
 		}
 
 	}
