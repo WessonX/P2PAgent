@@ -1,7 +1,6 @@
 package main
 
 import (
-	"P2PAgent/utils"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -87,28 +86,10 @@ func (s *Handler) exchangeInfo(c *Client, data map[string]string) {
 		// 回传给rosAGent的数据
 		var dataForRosAgent = make(map[string]string)
 
-		// 判断二者的网络类型是否一致
-		ros_type := utils.IsIpv4OrIpv6(s.ClientPool[uuid].Address)
-		local_type := utils.IsIpv4OrIpv6(c.Conn.RemoteAddr().String())
-
-		// 如果二者的类型不一致
-		if ros_type != local_type {
-			// ros_agent需要降级
-			if ros_type == utils.IPV6 {
-				dataForRosAgent["shouldDownGrade"] = "true"
-				dataForLocalAgent["shouldDownGrade"] = "false"
-			}
-
-			// local_agent需要降级
-			if local_type == utils.IPV6 {
-				dataForLocalAgent["shouldDownGrade"] = "true"
-				dataForRosAgent["shouldDownGrade"] = "false"
-			}
-		}
-
 		// 写回给localAgent
 		dataForLocalAgent["address"] = s.ClientPool[uuid].Address   // rosAgent的公网地址
 		dataForLocalAgent["privAddr"] = s.ClientPool[uuid].PrivAddr // rosAgent的局域网地址
+		dataForLocalAgent["ipv6Addr"] = s.ClientPool[uuid].Ipv6Addr // rosAgent的ipv6地址
 		body, _ := json.Marshal(dataForLocalAgent)
 		_, err := c.Conn.Write(body)
 		if err != nil {
@@ -118,6 +99,7 @@ func (s *Handler) exchangeInfo(c *Client, data map[string]string) {
 		// 写回给rosAgent
 		dataForRosAgent["address"] = c.Conn.RemoteAddr().String() // localAgent的公网地址
 		dataForRosAgent["privAddr"] = c.PrivAddr                  // localAgent的局域网地址
+		dataForRosAgent["ipv6Addr"] = c.Ipv6Addr
 		body, _ = json.Marshal(dataForRosAgent)
 		_, err = s.ClientPool[uuid].Conn.Write(body)
 		if err != nil {

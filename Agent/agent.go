@@ -66,8 +66,8 @@ func RequestForAddr(s *Agent, uuid string) error {
 	return nil
 }
 
-// WaitNotify 等待远程服务器发送通知告知我们另一个用户的公网IP和局域网IP,以及是否需要降级（由ipv6降为ipv4）
-func WaitNotify(s *Agent) (pubAddr string, privAddr string, shouldDownGrade string) {
+// WaitNotify 等待远程服务器发送通知告知我们另一个用户的ipv6地址，公网IP和局域网IP
+func WaitNotify(s *Agent) (pubAddr string, privAddr string, ipv6Addr string) {
 	buffer := make([]byte, 1024)
 	n, err := s.ServerConn.Read(buffer)
 	if err != nil {
@@ -78,7 +78,7 @@ func WaitNotify(s *Agent) (pubAddr string, privAddr string, shouldDownGrade stri
 		panic("获取用户信息失败" + err.Error())
 	}
 
-	return data["address"], data["privAddr"], data["shouldDownGrade"]
+	return data["address"], data["privAddr"], data["ipv6Addr"]
 }
 
 // DailP2P 连接对方临时的公网地址,并且不停的发送数据

@@ -139,7 +139,7 @@ func CreateP2pConn(relayAddr string, target_uuid string) bool {
 	ch := make(chan string)
 	localAgent = &agent.Agent{ServerConn: serverConn, LocalPort: int(localPort), Remain_cnt: 0, ChannelData: ch}
 
-	// 发送局域网地址和本机的uuid给中继服务器
+	// 发送ipv6地址、局域网地址和本机的uuid给中继服务器
 	err = agent.SendPrivAddrAndUUID(localAgent, ipv6Addr, privAddr, uuid)
 	if err != nil {
 		panic("发送局域网地址和uuid给中继服务器失败" + err.Error())
@@ -161,15 +161,11 @@ func CreateP2pConn(relayAddr string, target_uuid string) bool {
 	}
 
 	// 等待服务器回传对端节点的地址，并发起连接
-	rosPubAddr, rosPrivAddr, shouldDownGrade := agent.WaitNotify(localAgent)
-	// 如果需要降级
-	if shouldDownGrade == "true" {
-		return false
-	}
-	fmt.Println("对端的公网地址:", rosPubAddr, " 对端的局域网地址:", rosPrivAddr)
+	remotePubAddr, remotePrivAddr, remoteIpv6Addr := agent.WaitNotify(localAgent)
+	fmt.Println("对端的公网地址:", remotePubAddr, " 对端的局域网地址:", remotePrivAddr, " 对端的ipv6地址:", remoteIpv6Addr)
 
-	// 分别尝试连接对端的局域网地址和公网地址
-	return agent.DailP2P(localAgent, rosPrivAddr) || agent.DailP2P(localAgent, rosPubAddr)
+	// 分别尝试连接对端的局域网地址, ipv6地址和公网地址
+	return agent.DailP2P(localAgent, remotePrivAddr) || agent.DailP2P(localAgent, remoteIpv6Addr) || agent.DailP2P(localAgent, remotePubAddr)
 }
 
 func init() {
