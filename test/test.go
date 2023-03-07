@@ -2,23 +2,10 @@ package main
 
 import (
 	"fmt"
-	"time"
 )
 
-var done chan bool
-
-// https://gobyexample.com/channel-synchronization
-func worker() {
-	fmt.Println("working...")
-	time.Sleep(time.Second)
-	fmt.Println("done")
-
-	done <- true
-}
-
 func main() {
-	done = make(chan bool)
-	go worker()
-
-	<-done
+	str := "240e:47d:a20:2ce1:db:aa5a:88e4:f7e4"
+	s := fmt.Sprintf("[%s]:%d", str, 50)
+	fmt.Println(s)
 }

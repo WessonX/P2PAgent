@@ -3,7 +3,9 @@ package utils
 import (
 	"bufio"
 	"fmt"
+	"net"
 	"os"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -123,4 +125,34 @@ func GetGoid() int64 {
 	}
 
 	return int64(id)
+}
+
+// 获取本机的ipv6地址
+func GetIPV6Addr() string {
+	s, err := net.InterfaceAddrs()
+	if err != nil {
+		return ""
+	}
+	for _, a := range s {
+		i := regexp.MustCompile(`(\w+:){7}\w+`).FindString(a.String())
+		if strings.Count(i, ":") == 7 {
+			return i
+		}
+	}
+	return ""
+}
+
+// 获取本机的局域网地址
+func GetPrivAddr() string {
+	addrs, _ := net.InterfaceAddrs()
+	for _, addr := range addrs {
+		// 检查ip地址判断是否回环地址
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				privAddr := ipnet.IP.String()
+				return privAddr
+			}
+		}
+	}
+	return ""
 }

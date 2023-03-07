@@ -38,11 +38,12 @@ func GetUidAndPubAddr(s *Agent) (uuid string, pubAddr string) {
 	return data["uuid"], data["pubAddr"]
 }
 
-// 将局域网地址和uuid发送给中继服务器
-func SendPrivAddrAndUUID(s *Agent, privAddr string, uuid string) error {
+// 将ipv6地址、局域网地址和uuid发送给中继服务器
+func SendPrivAddrAndUUID(s *Agent, ipv6Addr string, privAddr string, uuid string) error {
 	var data = make(map[string]string)
 	data["method"] = "recvUUIDAndPrivAddr"
 	data["privAddr"] = privAddr + fmt.Sprintf(":%d", s.LocalPort)
+	data["ipv6Addr"] = fmt.Sprintf("[%s]:%d", ipv6Addr, s.LocalPort)
 	data["uuid"] = uuid
 	body, _ := json.Marshal(data)
 	_, err := s.ServerConn.Write(body)

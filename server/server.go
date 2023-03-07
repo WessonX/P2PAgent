@@ -23,6 +23,9 @@ type Client struct {
 
 	// 局域网地址
 	PrivAddr string
+
+	// ipv6地址
+	Ipv6Addr string
 }
 
 type Handler struct {
@@ -50,11 +53,14 @@ func (s *Handler) Handle() {
 	}
 }
 
-// 等待接收客户端传来的uuid和privAddr
+// 等待接收客户端传来的uuid,ipv6Addr和privAddr
 func (s *Handler) recvUUIDAndPrivAddr(c *Client, data map[string]string) {
 
 	if data["privAddr"] != "" {
 		c.PrivAddr = data["privAddr"]
+	}
+	if data["ipv6Addr"] != "" {
+		c.Ipv6Addr = data["ipv6Addr"]
 	}
 	if data["uuid"] != "" {
 		c.UID = data["uuid"]

@@ -21,6 +21,9 @@ var roshandler *RosHandler
 // 记录局域网地址
 var privAddr string
 
+// 记录ipv6地址
+var ipv6Addr string
+
 // 记录uuid
 var uuid string
 
@@ -86,7 +89,7 @@ func CreateP2pConn(relayAddr string) bool {
 	rosAgent = &agent.Agent{ServerConn: serverConn, LocalPort: int(localPort), Remain_cnt: 0, ChannelData: ch}
 
 	// 发送局域网地址和本机的uuid给中继服务器
-	err = agent.SendPrivAddrAndUUID(rosAgent, privAddr, uuid)
+	err = agent.SendPrivAddrAndUUID(rosAgent, ipv6Addr, privAddr, uuid)
 	if err != nil {
 		panic("发送局域网地址和uuid给中继服务器失败" + err.Error())
 	}
@@ -112,17 +115,11 @@ func CreateP2pConn(relayAddr string) bool {
 }
 
 func init() {
-	//获取局域网地址
-	addrs, _ := net.InterfaceAddrs()
-	for _, addr := range addrs {
-		// 检查ip地址判断是否回环地址
-		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-			if ipnet.IP.To4() != nil {
-				privAddr = ipnet.IP.String()
-				fmt.Println("privAddr:", privAddr)
-			}
-		}
-	}
+	// 获取局域网地址
+	privAddr = utils.GetPrivAddr()
+
+	// 获取本机的ipv6地址
+	ipv6Addr = utils.GetIPV6Addr()
 
 	//读取uuid文件
 	filePath := "../uuid.txt"
