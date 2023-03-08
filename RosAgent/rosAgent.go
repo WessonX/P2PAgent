@@ -2,30 +2,17 @@ package main
 
 import (
 	agent "P2PAgent/Agent"
-	"P2PAgent/utils"
-	"bufio"
 	"fmt"
-	"net"
-	"os"
 	"time"
 
 	"github.com/gorilla/websocket"
 )
 
-// 与对端节点建立连接的对象
-var rosAgent *agent.Agent
+// ros的代理对象
+var rosAgent agent.Agent
 
 // 与ros_server建立的连接对象
 var roshandler *RosHandler
-
-// 记录局域网地址
-var privAddr string
-
-// 记录ipv6地址
-var ipv6Addr string
-
-// 记录uuid
-var uuid string
 
 type RosHandler struct {
 	// 与ros_server的连接
@@ -58,79 +45,13 @@ func (s *RosHandler) rosRead() {
 	}
 }
 
-/*
-relayAddr: 中继服务器的地址。如果是ipv4地址，则逻辑为tcp打洞；如果是ipv6地址，则逻辑为ipv6直连。
-bool:连接是否成功
-*/
-func CreateP2pConn(relayAddr string) bool {
-	var serverConn net.Conn
-	var err error
-
-	// 随机生成本地端口
-	localPort := 3002
-
-	// 向 P2P 转发服务器注册自己的公网 IP (请注意,Dial 这里拨号指定了自己临时生成的本地端口。如果用net.Dial方法，使用的端口是随机分配的，就无法穿透了)
-	d := net.Dialer{
-		Timeout: 10 * time.Second,
-		LocalAddr: &net.TCPAddr{
-			IP:   net.ParseIP("0.0.0.0"),
-			Port: int(localPort),
-		},
-		Control: agent.Control,
-	}
-	serverConn, err = d.Dial("tcp", relayAddr)
-	if err != nil {
-		fmt.Println("连接失败:" + err.Error())
-		return false
-	}
-	fmt.Println("请求远程服务器成功...")
-
-	ch := make(chan string)
-	rosAgent = &agent.Agent{ServerConn: serverConn, LocalPort: int(localPort), Remain_cnt: 0, ChannelData: ch}
-
-	// 发送ipv6地址、局域网地址和本机的uuid给中继服务器
-	err = agent.SendPrivAddrAndUUID(rosAgent, ipv6Addr, privAddr, uuid)
-	if err != nil {
-		panic("发送局域网地址和uuid给中继服务器失败" + err.Error())
-	}
-
-	// 获取uuid和本机的公网地址
-	id, localPubAddr := agent.GetUidAndPubAddr(rosAgent)
-	fmt.Println("uuid:", id, " pubAddr:", localPubAddr)
-	// 将uuid保存到本地
-	if uuid == "" {
-		uuid = id
-		utils.SaveUUID(uuid)
-	}
-
-	// 等待服务器回传对端节点的地址，并发起连接
-	remotePubAddr, remotePrivAddr, remoteIpv6Addr := agent.WaitNotify(rosAgent)
-	fmt.Println("对端的公网地址:", remotePubAddr, " 对端的局域网地址:", remotePrivAddr, " 对端的ipv6地址:", remoteIpv6Addr)
-
-	// 分别尝试连接对端的局域网地址、ipv6地址和公网地址
-	return agent.DailP2P(rosAgent, remotePrivAddr) || agent.DailP2P(rosAgent, remoteIpv6Addr) || agent.DailP2P(rosAgent, remotePubAddr)
-}
-
 func init() {
-	// 获取局域网地址
-	privAddr = utils.GetPrivAddr()
-
-	// 获取本机的ipv6地址
-	ipv6Addr = utils.GetIPV6Addr()
-
-	//读取uuid文件
-	filePath := "../uuid.txt"
-	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_RDWR, 0666)
-	if err != nil {
-		panic("文件打开失败")
-	}
-	defer file.Close()
-
-	reader := bufio.NewReader(file)
-	uuid, _ = reader.ReadString('\n')
+	localPort := 3002
+	rosAgent.InitAgent(localPort)
 }
 
 func main() {
+	var err error
 	/*
 		与9090端口的ros_server建立websocket连接
 	*/
@@ -146,19 +67,22 @@ func main() {
 	/*
 		与对端节点建立p2p连接
 	*/
-
-	// 先尝试ipv6连接
-	isSuccess := CreateP2pConn("[2408:4003:1093:d933:908d:411d:fc28:d28f]:3001")
-
-	// 若失败，尝试打洞
-	if !isSuccess {
-		fmt.Println("ipv6直连失败")
-		isSuccess = CreateP2pConn("47.112.96.50:3001")
+	// 先连接服务器
+	err = rosAgent.ConnectToRelay("47.112.96.50:3001")
+	if err != nil {
+		fmt.Println("连接服务器失败:" + err.Error())
 	}
+
+	// 等待服务器回传对端节点的信息
+	remotePubAddr, remotePrivAddr, remoteIpv6Addr := rosAgent.WaitNotify()
+	fmt.Println("对端的公网地址:", remotePubAddr, " 对端的局域网地址:", remotePrivAddr, " 对端的ipv6地址:", remoteIpv6Addr)
+
+	// 分别尝试连接对端的局域网地址、ipv6地址、公网地址
+	isSuccess := rosAgent.DailP2P(remotePrivAddr) || rosAgent.DailP2P(remoteIpv6Addr) || rosAgent.DailP2P(remotePubAddr)
 
 	// 若失败，则断开与ros_server的连接；浏览器会直接通过frp连接ros_server
 	if !isSuccess {
-		rosConn.Close()
+		// rosConn.Close()
 	} else {
 		fmt.Println("p2p直连成功")
 		// 若成功，则从rosAgent的channelDate中读取数据，发送给ros_server

@@ -1,19 +1,15 @@
 package main
 
 import (
-	"bufio"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"math"
 	"math/big"
-	"net"
 	"net/http"
-	"os"
 	"time"
 
 	agent "P2PAgent/Agent"
-	"P2PAgent/utils"
 
 	"github.com/gorilla/websocket"
 )
@@ -23,20 +19,11 @@ import (
 **length后，是数据的总长度，后面填充空格，使得填充到18个字节
  */
 
-// 与对端节点建立p2p连接的handler
-var localAgent *agent.Agent
+// 本地的代理对象
+var localAgent agent.Agent
 
 // 与浏览器建立的websocket连接
 var browserConn *websocket.Conn
-
-// 记录局域网地址
-var privAddr string
-
-// 记录ipv6地址
-var ipv6Addr string
-
-// 记录uuid
-var uuid string
 
 // 记录p2p连接是否成功
 var isSuccess bool
@@ -108,87 +95,14 @@ func NotifyIfSuccess(isSuccess string) {
 	fmt.Println("成功通知浏览器，p2p连接是否成功:", isSuccess)
 }
 
-/*
-relayAddr: 中继服务器的地址。如果是ipv4地址，则逻辑为tcp打洞；如果是ipv6地址，则逻辑为ipv6直连。
-target_uuid:连接对象的uuid
-bool:连接是否成功
-*/
-func CreateP2pConn(relayAddr string, target_uuid string) bool {
-	var serverConn net.Conn
-	var err error
-
-	// 随机生成本地端口
-	localPort := randPort(10000, 50000)
-
-	// 向 P2P 转发服务器注册自己的公网 IP (请注意,Dial 这里拨号指定了自己临时生成的本地端口。如果用net.Dial方法，使用的端口是随机分配的，就无法穿透了)
-	d := net.Dialer{
-		Timeout: 10 * time.Second,
-		LocalAddr: &net.TCPAddr{
-			IP:   net.ParseIP("0.0.0.0"),
-			Port: int(localPort),
-		},
-		Control: agent.Control,
-	}
-	serverConn, err = d.Dial("tcp", relayAddr)
-	if err != nil {
-		fmt.Println("连接失败:" + err.Error())
-		return false
-	}
-	fmt.Println("请求远程服务器成功...")
-
-	ch := make(chan string)
-	localAgent = &agent.Agent{ServerConn: serverConn, LocalPort: int(localPort), Remain_cnt: 0, ChannelData: ch}
-
-	// 发送ipv6地址、局域网地址和本机的uuid给中继服务器
-	err = agent.SendPrivAddrAndUUID(localAgent, ipv6Addr, privAddr, uuid)
-	if err != nil {
-		panic("发送局域网地址和uuid给中继服务器失败" + err.Error())
-	}
-
-	// 获取uuid和本机的公网地址
-	id, localPubAddr := agent.GetUidAndPubAddr(localAgent)
-	fmt.Println("uuid:", id, " pubAddr:", localPubAddr)
-	// 将uuid保存到本地
-	if uuid == "" {
-		uuid = id
-		utils.SaveUUID(uuid)
-	}
-
-	// 请求获取指定uuid的地址
-	err = agent.RequestForAddr(localAgent, target_uuid)
-	if err != nil {
-		panic("请求获取指定uuid的地址失败" + err.Error())
-	}
-
-	// 等待服务器回传对端节点的地址，并发起连接
-	remotePubAddr, remotePrivAddr, remoteIpv6Addr := agent.WaitNotify(localAgent)
-	fmt.Println("对端的公网地址:", remotePubAddr, " 对端的局域网地址:", remotePrivAddr, " 对端的ipv6地址:", remoteIpv6Addr)
-
-	// 分别尝试连接对端的局域网地址, ipv6地址和公网地址
-	return agent.DailP2P(localAgent, remotePrivAddr) || agent.DailP2P(localAgent, remoteIpv6Addr) || agent.DailP2P(localAgent, remotePubAddr)
-}
-
 func init() {
-	// 获取局域网地址
-	privAddr = utils.GetPrivAddr()
-
-	// 获取本机的ipv6地址
-	ipv6Addr = utils.GetIPV6Addr()
+	localPort := randPort(10000, 50000)
+	localAgent.InitAgent(int(localPort))
 
 	// 初始化存储对端uuid的通道
-	ch := make(chan string)
-	rosUuid_chan = ch
+	ch_uuid := make(chan string)
+	rosUuid_chan = ch_uuid
 
-	//读取uuid文件
-	filePath := "../uuid.txt"
-	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_RDWR, 0666)
-	if err != nil {
-		panic("文件打开失败")
-	}
-	defer file.Close()
-
-	reader := bufio.NewReader(file)
-	uuid, _ = reader.ReadString('\n')
 }
 
 func main() {
@@ -210,15 +124,29 @@ func main() {
 		与对端节点建立p2p连接
 	*/
 
-	// 先尝试ipv6连接
-	peer_id := <-rosUuid_chan
-	isSuccess = CreateP2pConn("[2408:4003:1093:d933:908d:411d:fc28:d28f]:3001", peer_id)
-
-	// 若失败，尝试打洞
-	if !isSuccess {
-		fmt.Println("ipv6直连失败")
-		isSuccess = CreateP2pConn("47.112.96.50:3001", peer_id)
+	// 先连接服务器
+	var err error
+	err = localAgent.ConnectToRelay("47.112.96.50:3001")
+	if err != nil {
+		fmt.Println("fail to connect to relayServer:", err.Error())
 	}
+	fmt.Println("connected to relayServer")
+
+	// 等待浏览器发来对端节点的uuid
+	peer_id := <-rosUuid_chan
+
+	// 请求目标uuid的节点的信息
+	err = localAgent.RequestForAddr(peer_id)
+	if err != nil {
+		fmt.Println("请求对端节点信息失败" + err.Error())
+	}
+
+	// 等待服务器回传对端节点的信息
+	remotePubAddr, remotePrivAddr, remoteIpv6Addr := localAgent.WaitNotify()
+	fmt.Println("对端的公网地址:", remotePubAddr, " 对端的局域网地址:", remotePrivAddr, " 对端的ipv6地址:", remoteIpv6Addr)
+
+	// 分别尝试连接对端的局域网地址、ipv6地址、公网地址
+	isSuccess = localAgent.DailP2P(remotePrivAddr) || localAgent.DailP2P(remoteIpv6Addr) || localAgent.DailP2P(remotePubAddr)
 
 	// 通知浏览器，是否成功建立p2p连接
 	if !isSuccess {

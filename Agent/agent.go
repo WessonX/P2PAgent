@@ -2,9 +2,11 @@ package agent
 
 import (
 	"P2PAgent/utils"
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"net"
+	"os"
 	"time"
 )
 
@@ -13,6 +15,17 @@ type Agent struct {
 	ServerConn net.Conn
 	// p2p 连接
 	P2PConn net.Conn
+
+	// 本机的uuid
+	UUID string
+	// 本地的局域网地址
+	PrivAddr string
+
+	// 本机的公网地址
+	PubAddr string
+
+	// 本机的ipv6地址
+	Ipv6Addr string
 
 	// 本地使用的端口
 	LocalPort int
@@ -24,8 +37,80 @@ type Agent struct {
 	ChannelData chan string
 }
 
+// agent的初始化方法
+func (agent *Agent) InitAgent(port int) {
+	// 设置本地端口
+	agent.LocalPort = port
+
+	// 设置数据通道
+	ch := make(chan string)
+	agent.ChannelData = ch
+
+	// 设置剩余读取的数据长度
+	agent.Remain_cnt = 0
+
+	// 获取局域网地址
+	agent.PrivAddr = utils.GetPrivAddr()
+
+	// 获取本机的ipv6地址
+	agent.Ipv6Addr = utils.GetIPV6Addr()
+
+	//读取uuid文件
+	filePath := "../uuid.txt"
+	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_RDWR, 0666)
+	if err != nil {
+		panic("文件打开失败")
+	}
+	defer file.Close()
+
+	reader := bufio.NewReader(file)
+
+	// 设置uuid
+	agent.UUID, _ = reader.ReadString('\n')
+}
+
+// 连接到中继服务器
+/*
+relayAddr:中继服务器的地址
+*/
+func (agent *Agent) ConnectToRelay(relayAddr string) (err error) {
+	var serverConn net.Conn
+	d := net.Dialer{
+		Timeout: 10 * time.Second,
+		LocalAddr: &net.TCPAddr{
+			IP:   net.ParseIP("0.0.0.0"),
+			Port: agent.LocalPort,
+		},
+		Control: Control,
+	}
+	serverConn, err = d.Dial("tcp", relayAddr)
+	if err != nil {
+		fmt.Println("连接失败:" + err.Error())
+		return err
+	}
+	fmt.Println("请求远程服务器成功...")
+	agent.ServerConn = serverConn
+
+	// 发送ipv6地址、局域网地址和本机的uuid给中继服务器
+	err = agent.SendPrivAddrAndUUID(agent.Ipv6Addr, agent.PrivAddr, agent.UUID)
+	if err != nil {
+		fmt.Println("发送本机信息给中继服务器失败" + err.Error())
+		return err
+	}
+
+	// 获取uuid和本机的公网地址
+	id, localPubAddr := agent.GetUidAndPubAddr()
+	fmt.Println("uuid:", id, " pubAddr:", localPubAddr)
+	// 将uuid保存到本地
+	if agent.UUID == "" {
+		agent.UUID = id
+		utils.SaveUUID(id)
+	}
+	return nil
+}
+
 // 等待服务器回传我们的uuid和公网地址
-func GetUidAndPubAddr(s *Agent) (uuid string, pubAddr string) {
+func (s *Agent) GetUidAndPubAddr() (uuid string, pubAddr string) {
 	buffer := make([]byte, 1024)
 	n, err := s.ServerConn.Read(buffer)
 	if err != nil {
@@ -39,7 +124,7 @@ func GetUidAndPubAddr(s *Agent) (uuid string, pubAddr string) {
 }
 
 // 将ipv6地址、局域网地址和uuid发送给中继服务器
-func SendPrivAddrAndUUID(s *Agent, ipv6Addr string, privAddr string, uuid string) error {
+func (s *Agent) SendPrivAddrAndUUID(ipv6Addr string, privAddr string, uuid string) error {
 	var data = make(map[string]string)
 	data["method"] = "recvUUIDAndPrivAddr"
 	data["privAddr"] = privAddr + fmt.Sprintf(":%d", s.LocalPort)
@@ -54,7 +139,7 @@ func SendPrivAddrAndUUID(s *Agent, ipv6Addr string, privAddr string, uuid string
 }
 
 // 向中继服务器请求目标uuid对应的公网地址
-func RequestForAddr(s *Agent, uuid string) error {
+func (s *Agent) RequestForAddr(uuid string) error {
 	var data = make(map[string]string)
 	data["method"] = "exchangeInfo"
 	data["targetUUID"] = uuid // 目标uuid
@@ -67,7 +152,7 @@ func RequestForAddr(s *Agent, uuid string) error {
 }
 
 // WaitNotify 等待远程服务器发送通知告知我们另一个用户的ipv6地址，公网IP和局域网IP
-func WaitNotify(s *Agent) (pubAddr string, privAddr string, ipv6Addr string) {
+func (s *Agent) WaitNotify() (pubAddr string, privAddr string, ipv6Addr string) {
 	buffer := make([]byte, 1024)
 	n, err := s.ServerConn.Read(buffer)
 	if err != nil {
@@ -82,7 +167,7 @@ func WaitNotify(s *Agent) (pubAddr string, privAddr string, ipv6Addr string) {
 }
 
 // DailP2P 连接对方临时的公网地址,并且不停的发送数据
-func DailP2P(s *Agent, address string) bool {
+func (s *Agent) DailP2P(address string) bool {
 	var errCount = 1
 	var conn net.Conn
 	var err error
@@ -113,12 +198,12 @@ func DailP2P(s *Agent, address string) bool {
 		return false
 	}
 	s.P2PConn = conn
-	go P2PRead(s)
+	go s.P2PRead()
 	return true
 }
 
 // P2PRead 读取 P2P 节点的数据
-func P2PRead(s *Agent) {
+func (s *Agent) P2PRead() {
 	// 用于拼接分片，组成完整的报文
 	var content string
 
