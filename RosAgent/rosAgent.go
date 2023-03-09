@@ -45,6 +45,11 @@ func (s *RosHandler) rosRead() {
 	}
 }
 
+// 断开和rosbridge的连接
+func (s *RosHandler) Close() {
+	s.RosConn.Close()
+}
+
 func init() {
 	localPort := 3002
 	rosAgent.InitAgent(localPort)
@@ -53,50 +58,63 @@ func init() {
 func main() {
 	var err error
 	/*
-		与9090端口的ros_server建立websocket连接
+		与9090端口的rosbridge建立websocket连接
 	*/
-	dialer := websocket.Dialer{}
-	rosConn, _, err := dialer.Dial("ws://127.0.0.1:9090", nil)
-	if err != nil {
-		panic("连接ros_server失败" + err.Error())
+	for {
+		dialer := websocket.Dialer{}
+		rosConn, _, err := dialer.Dial("ws://127.0.0.1:9090", nil)
+		if err != nil {
+			fmt.Println("连接ros_server失败:" + err.Error())
+			time.Sleep(2 * time.Second)
+			continue
+		}
+		fmt.Println("连接ros_server成功")
+		roshandler = &RosHandler{RosConn: rosConn}
+		go roshandler.rosRead()
+		break
 	}
-	fmt.Println("连接ros_server成功")
-	roshandler = &RosHandler{RosConn: rosConn}
-	go roshandler.rosRead()
 
+	defer roshandler.Close()
+	defer rosAgent.Close()
 	/*
 		与对端节点建立p2p连接
 	*/
-	// 先连接服务器
-	err = rosAgent.ConnectToRelay("47.112.96.50:3001")
-	if err != nil {
-		fmt.Println("连接服务器失败:" + err.Error())
+	// 连接中继服务器
+	for {
+		err = rosAgent.ConnectToRelay("47.112.96.50:3001")
+		if err != nil {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		break
 	}
 
 	// 等待服务器回传对端节点的信息
-	remotePubAddr, remotePrivAddr, remoteIpv6Addr := rosAgent.WaitNotify()
-	fmt.Println("对端的公网地址:", remotePubAddr, " 对端的局域网地址:", remotePrivAddr, " 对端的ipv6地址:", remoteIpv6Addr)
+	for {
+		remotePubAddr, remotePrivAddr, remoteIpv6Addr := rosAgent.WaitNotify()
+		fmt.Println("对端的公网地址:", remotePubAddr, " 对端的局域网地址:", remotePrivAddr, " 对端的ipv6地址:", remoteIpv6Addr)
 
-	// 分别尝试连接对端的局域网地址、ipv6地址、公网地址
-	isSuccess := rosAgent.DailP2P(remotePrivAddr) || rosAgent.DailP2P(remoteIpv6Addr) || rosAgent.DailP2P(remotePubAddr)
+		// 分别尝试连接对端的局域网地址、ipv6地址、公网地址
+		isSuccess := rosAgent.DailP2P(remotePrivAddr) || rosAgent.DailP2P(remoteIpv6Addr) || rosAgent.DailP2P(remotePubAddr)
 
-	// 若失败，则断开与ros_server的连接；浏览器会直接通过frp连接ros_server
-	if !isSuccess {
-		// rosConn.Close()
-	} else {
-		fmt.Println("p2p直连成功")
-		// 若成功，则从rosAgent的channelDate中读取数据，发送给ros_server
-		go func() {
-			for {
-				content := <-rosAgent.ChannelData
-				err := roshandler.RosConn.WriteMessage(websocket.TextMessage, []byte(content))
-				if err != nil {
-					fmt.Println("发送数据给ros_server失败:", err.Error())
-				} else {
-					fmt.Println("发送数据给ros_server成功")
+		// 若失败，则断开与ros_server的连接；浏览器会直接通过frp连接ros_server
+		if !isSuccess {
+			fmt.Println("p2p直连失败")
+			continue
+		} else {
+			fmt.Println("p2p直连成功")
+			// 若成功，则从rosAgent的channelDate中读取数据，发送给ros_server
+			go func() {
+				for {
+					content := <-rosAgent.ChannelData
+					err := roshandler.RosConn.WriteMessage(websocket.TextMessage, []byte(content))
+					if err != nil {
+						fmt.Println("发送数据给ros_server失败:", err.Error())
+					} else {
+						fmt.Println("发送数据给ros_server成功")
+					}
 				}
-			}
-		}()
+			}()
+		}
 	}
-	time.Sleep(time.Hour)
 }

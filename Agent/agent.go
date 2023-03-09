@@ -69,6 +69,11 @@ func (agent *Agent) InitAgent(port int) {
 	agent.UUID, _ = reader.ReadString('\n')
 }
 
+func (agent *Agent) Close() {
+	agent.P2PConn.Close()
+	agent.ServerConn.Close()
+}
+
 // 连接到中继服务器
 /*
 relayAddr:中继服务器的地址
@@ -221,6 +226,7 @@ func (s *Agent) P2PRead() {
 			if err != nil {
 				if err.Error() == "EOF" {
 					fmt.Println("连接中断")
+					s.P2PConn.Close()
 					break
 				}
 				fmt.Println("读取失败", err.Error())

@@ -119,60 +119,66 @@ func main() {
 
 		fmt.Println("与浏览器成功建立websocket连接")
 	}()
-
+	defer localAgent.Close()
 	/*
 		与对端节点建立p2p连接
 	*/
 
-	// 先连接服务器
+	// 连接服务器
 	var err error
-	err = localAgent.ConnectToRelay("47.112.96.50:3001")
-	if err != nil {
-		fmt.Println("fail to connect to relayServer:", err.Error())
-	}
-	fmt.Println("connected to relayServer")
-
-	// 等待浏览器发来对端节点的uuid
-	peer_id := <-rosUuid_chan
-
-	// 请求目标uuid的节点的信息
-	err = localAgent.RequestForAddr(peer_id)
-	if err != nil {
-		fmt.Println("请求对端节点信息失败" + err.Error())
+	for {
+		err = localAgent.ConnectToRelay("47.112.96.50:3001")
+		if err != nil {
+			time.Sleep(2 * time.Second)
+			continue
+		}
+		fmt.Println("connected to relayServer")
+		break
 	}
 
-	// 等待服务器回传对端节点的信息
-	remotePubAddr, remotePrivAddr, remoteIpv6Addr := localAgent.WaitNotify()
-	fmt.Println("对端的公网地址:", remotePubAddr, " 对端的局域网地址:", remotePrivAddr, " 对端的ipv6地址:", remoteIpv6Addr)
+	for {
 
-	// 分别尝试连接对端的局域网地址、ipv6地址、公网地址
-	isSuccess = localAgent.DailP2P(remotePrivAddr) || localAgent.DailP2P(remoteIpv6Addr) || localAgent.DailP2P(remotePubAddr)
+		// 等待浏览器发来对端节点的uuid
+		peer_id := <-rosUuid_chan
 
-	// 通知浏览器，是否成功建立p2p连接
-	if !isSuccess {
-		fmt.Println("p2p连接失败")
-		NotifyIfSuccess("fail")
-		browserConn.Close()
-	} else {
-		NotifyIfSuccess("success")
-	}
+		// 请求目标uuid的节点的信息
+		err = localAgent.RequestForAddr(peer_id)
+		if err != nil {
+			fmt.Println("请求对端节点信息失败" + err.Error())
+		}
 
-	// 如果p2p连接成功,则尝试从agent的通道中读取数据，并发送给浏览器
-	if isSuccess {
-		fmt.Println("P2P直连成功")
-		go func() {
-			for {
-				content := <-localAgent.ChannelData
-				err := browserConn.WriteMessage(websocket.TextMessage, []byte(content))
-				if err != nil {
-					fmt.Println("消息转发给浏览器失败:", err.Error())
-				} else {
-					fmt.Println("消息转发给浏览器成功")
+		// 等待服务器回传对端节点的信息
+		remotePubAddr, remotePrivAddr, remoteIpv6Addr := localAgent.WaitNotify()
+		fmt.Println("对端的公网地址:", remotePubAddr, " 对端的局域网地址:", remotePrivAddr, " 对端的ipv6地址:", remoteIpv6Addr)
+
+		// 分别尝试连接对端的局域网地址、ipv6地址、公网地址
+		isSuccess = localAgent.DailP2P(remotePrivAddr) || localAgent.DailP2P(remoteIpv6Addr) || localAgent.DailP2P(remotePubAddr)
+
+		// 通知浏览器，是否成功建立p2p连接
+		if !isSuccess {
+			fmt.Println("p2p连接失败")
+			NotifyIfSuccess("fail")
+			continue
+		} else {
+			NotifyIfSuccess("success")
+		}
+
+		// 如果p2p连接成功,则尝试从agent的通道中读取数据，并发送给浏览器
+		if isSuccess {
+			fmt.Println("P2P直连成功")
+			go func() {
+				for {
+					content := <-localAgent.ChannelData
+					err := browserConn.WriteMessage(websocket.TextMessage, []byte(content))
+					if err != nil {
+						fmt.Println("消息转发给浏览器失败:", err.Error())
+					} else {
+						fmt.Println("消息转发给浏览器成功")
+					}
 				}
-			}
-		}()
+			}()
+		}
 	}
-	time.Sleep(time.Hour)
 }
 
 // RandPort 生成区间范围内的随机端口
