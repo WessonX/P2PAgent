@@ -56,10 +56,15 @@ func (agent *Agent) InitAgent(port int) {
 	agent.Ipv6Addr = utils.GetIPV6Addr()
 
 	//读取uuid文件
-	filePath := "../uuid.txt"
+	filePath := utils.GetAppPath() + "/uuid.txt"
+	err := os.Chmod(filePath, 0777)
+	if err != nil {
+		fmt.Println(err)
+	}
+
 	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
-		panic("文件打开失败")
+		panic("文件打开失败:" + err.Error())
 	}
 	defer file.Close()
 

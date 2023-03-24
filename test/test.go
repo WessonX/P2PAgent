@@ -2,10 +2,21 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 )
 
+func GetAppPath() string {
+	file, _ := exec.LookPath(os.Args[0])
+	fmt.Println(file)
+	path, _ := filepath.Abs(file)
+	fmt.Println(path)
+	index := strings.LastIndex(path, string(os.PathSeparator))
+	return path[:index]
+}
+
 func main() {
-	str := "240e:47d:a20:2ce1:db:aa5a:88e4:f7e4"
-	s := fmt.Sprintf("[%s]:%d", str, 50)
-	fmt.Println(s)
+	fmt.Println(GetAppPath())
 }
