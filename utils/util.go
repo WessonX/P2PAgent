@@ -163,9 +163,7 @@ func GetPrivAddr() string {
 // 在go中"./"指的并不是文件所在的目录，而是工程目录。所以需要避免使用相对路径，而是使用绝对路径
 func GetAppPath() string {
 	file, _ := exec.LookPath(os.Args[0])
-	fmt.Println(file)
 	path, _ := filepath.Abs(file)
-	fmt.Println(path)
 	index := strings.LastIndex(path, string(os.PathSeparator))
 	return path[:index]
 }
