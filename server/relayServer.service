@@ -1,0 +1,11 @@
+[Unit]
+Description=relayServer service
+After=network.target syslog.target
+Wants=network.target
+
+[Service]
+Type=simple
+ExecStart=/root/P2PAgent/server/server
+
+[Install]
+WantedBy=multi-user.target
