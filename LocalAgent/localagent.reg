@@ -1,0 +1,10 @@
+Windows Registry Editor Version 5.00
+[HKEY_CLASSES_ROOT\agent]
+"URL Protocol"="C:\\Users\\Administrator\\Desktop\\localAgent.exe"
+@="AgentProtocol"
+[HKEY_CLASSES_ROOT\agent\DefaultIcon]
+@="C:\\Users\\Administrator\\Desktop\\localAgent.exe,1"
+[HKEY_CLASSES_ROOT\agent\shell]
+[HKEY_CLASSES_ROOT\agent\shell\open]
+[HKEY_CLASSES_ROOT\agent\shell\open\command]
+@="\"C:\\Users\\Administrator\\Desktop\\localAgent.exe\" \"%1\""
