@@ -5,14 +5,15 @@
 <script>
     var input = document.getElementById("input");
     var output = document.getElementById("output");
-    var socket = new WebSocket("ws://localhost:3000/echo");
+    var socket = new WebSocket("ws://localhost:3000/control");
 
     socket.onopen = function () {
         output.innerHTML += "Status: Connected\n";
     };
 
     socket.onmessage = function (e) {
-        output.innerHTML += "Server: " + e.data + "\n";
+        console.log(e.data)
+        output.innerHTML = "Server: " + e.data + "\n";
     };
 
     function send() {

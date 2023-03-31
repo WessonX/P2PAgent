@@ -22,8 +22,11 @@ import (
 // 本地的代理对象
 var localAgent agent.Agent
 
-// 与浏览器建立的websocket连接
-var browserConn *websocket.Conn
+// 与浏览器建立的数据连接
+var dataConn *websocket.Conn
+
+// 与浏览器建立的控制连接
+var controlConn *websocket.Conn
 
 // 记录p2p连接是否成功
 var isSuccess bool
@@ -40,15 +43,38 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-// 接受来自浏览器的请求，并返回rsp
-func httpHandler(w http.ResponseWriter, r *http.Request) {
+// 浏览器和agent之间的控制连接
+func controlHandler(w http.ResponseWriter, r *http.Request) {
 	conn, error := upgrader.Upgrade(w, r, nil)
 	if error != nil {
 		panic("websocket请求建立失败:" + error.Error())
 	}
-	browserConn = conn
+	controlConn = conn
+	fmt.Println("websocket控制连接建立成功")
+	for {
+		// Read message from browser
+		_, msg, err := conn.ReadMessage()
+		if err != nil {
+			return
+		}
+		readCnt := len(msg)
+		// Print the message to the console
+		fmt.Printf(">读取到%d个字节,浏览器发来内容:%s\n", readCnt, string(msg))
 
-	fmt.Println("websocket连接建立成功")
+		rosUuid_chan <- string(msg)
+
+	}
+}
+
+// 浏览器和agent之间的数据连接
+func dataHandler(w http.ResponseWriter, r *http.Request) {
+	conn, error := upgrader.Upgrade(w, r, nil)
+	if error != nil {
+		panic("websocket请求建立失败:" + error.Error())
+	}
+	dataConn = conn
+
+	fmt.Println("websocket数据连接建立成功")
 	for {
 		// Read message from browser
 		_, msg, err := conn.ReadMessage()
@@ -60,7 +86,7 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf(">读取到%d个字节,浏览器发来内容:%s\n", readCnt, string(msg))
 
 		// 如果建立好了p2p连接，就将浏览器传来的内容转发给对端节点
-		if isSuccess {
+		if localAgent.P2PConn != nil {
 			// 自定义的包头
 			data_head := fmt.Sprintf("length:%-11d", readCnt)
 
@@ -75,24 +101,20 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 				panic("消息转发给对端节点失败" + err.Error())
 			}
 			fmt.Println("消息转发给对端节点,大小:", writeCnt)
-		} else {
-			// 没建立好p2p连接，此时浏览器传来的内容是对端节点的uuid
-			rosUuid_chan <- string(msg)
 		}
-
 	}
 }
 
-// 发消息给浏览器，告知p2p连接是否成功
-func NotifyIfSuccess(isSuccess string) {
+// 发消息给浏览器，告知p2p连接的状态
+func NotifyStatus(status string) {
 	var data = make(map[string]string)
-	data["isSuccess"] = isSuccess
+	data["status"] = status
 	body, _ := json.Marshal(data)
-	err := browserConn.WriteMessage(websocket.TextMessage, body)
+	err := controlConn.WriteMessage(websocket.TextMessage, body)
 	if err != nil {
-		panic("通知浏览器p2p连接是否成功，fail:" + err.Error())
+		panic("fail:" + err.Error())
 	}
-	fmt.Println("成功通知浏览器，p2p连接是否成功:", isSuccess)
+	fmt.Println("成功通知浏览器，p2p连接状态:", status)
 }
 
 func init() {
@@ -110,7 +132,11 @@ func main() {
 		与浏览器建立webSocket连接
 	*/
 	go func() {
-		http.HandleFunc("/echo", httpHandler)
+		// 与浏览器的控制连接
+		http.HandleFunc("/control", controlHandler)
+
+		// 与浏览器的数据连接
+		http.HandleFunc("/data", dataHandler)
 
 		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			http.ServeFile(w, r, "go.html")
@@ -151,16 +177,21 @@ func main() {
 		remotePubAddr, remotePrivAddr, remoteIpv6Addr := localAgent.WaitNotify()
 		fmt.Println("对端的公网地址:", remotePubAddr, " 对端的局域网地址:", remotePrivAddr, " 对端的ipv6地址:", remoteIpv6Addr)
 
+		// 在尝试连接之前，先关掉可能的已有连接，防止端口占用
+		if localAgent.P2PConn != nil {
+			localAgent.P2PConn.Close()
+		}
+
 		// 分别尝试连接对端的局域网地址、ipv6地址、公网地址
 		isSuccess = localAgent.DailP2P(remotePrivAddr) || localAgent.DailP2P(remoteIpv6Addr) || localAgent.DailP2P(remotePubAddr)
 
 		// 通知浏览器，是否成功建立p2p连接
 		if !isSuccess {
 			fmt.Println("p2p连接失败")
-			NotifyIfSuccess("fail")
+			NotifyStatus("fail")
 			continue
 		} else {
-			NotifyIfSuccess("success")
+			NotifyStatus("success")
 		}
 
 		// 如果p2p连接成功,则尝试从agent的通道中读取数据，并发送给浏览器
@@ -169,7 +200,12 @@ func main() {
 			go func() {
 				for {
 					content := <-localAgent.ChannelData
-					err := browserConn.WriteMessage(websocket.TextMessage, []byte(content))
+					// 如果连接已经中断，通知浏览器并中断循环
+					if content == "EOF" {
+						NotifyStatus("disconnected")
+						break
+					}
+					err := dataConn.WriteMessage(websocket.TextMessage, []byte(content))
 					if err != nil {
 						fmt.Println("消息转发给浏览器失败:", err.Error())
 					} else {

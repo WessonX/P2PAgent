@@ -37,11 +37,13 @@ func (s *RosHandler) rosRead() {
 		content := data_head + body
 
 		// 将读取到的内容，回传给p2p节点
-		writeCnt, error := rosAgent.P2PConn.Write([]byte(content))
-		if err != nil {
-			panic("消息转发给对端节点失败" + error.Error())
+		if rosAgent.P2PConn != nil {
+			writeCnt, error := rosAgent.P2PConn.Write([]byte(content))
+			if err != nil {
+				panic("消息转发给对端节点失败" + error.Error())
+			}
+			fmt.Println("消息转发给对端节点成功,大小:", writeCnt)
 		}
-		fmt.Println("消息转发给对端节点成功,大小:", writeCnt)
 	}
 }
 
@@ -103,10 +105,14 @@ func main() {
 			continue
 		} else {
 			fmt.Println("p2p直连成功")
-			// 若成功，则从rosAgent的channelDate中读取数据，发送给ros_server
+			// 若成功，则从rosAgent的channelData中读取数据，发送给ros_server
 			go func() {
 				for {
 					content := <-rosAgent.ChannelData
+					// 如果连接已经中断，中断循环
+					if content == "EOF" {
+						break
+					}
 					err := roshandler.RosConn.WriteMessage(websocket.TextMessage, []byte(content))
 					if err != nil {
 						fmt.Println("发送数据给ros_server失败:", err.Error())

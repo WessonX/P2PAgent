@@ -228,6 +228,9 @@ func (s *Agent) P2PRead() {
 				if err.Error() == "EOF" {
 					fmt.Println("连接中断")
 					s.P2PConn.Close()
+
+					// 通过隧道，将连接中断的信息发送出去
+					s.ChannelData <- err.Error()
 					break
 				}
 				fmt.Println("读取失败", err.Error())
