@@ -86,6 +86,17 @@ func (s *Handler) exchangeInfo(c *Client, data map[string]string) {
 		// 回传给rosAGent的数据
 		var dataForRosAgent = make(map[string]string)
 
+		// 如果目标uuid不存在，则返回错误码给localAgent
+		if s.ClientPool[uuid] == nil {
+			dataForLocalAgent["error"] = "1" //todo:后续如果有其他的错误码，要写成枚举的形式
+			body, _ := json.Marshal(dataForLocalAgent)
+			_, err := c.Conn.Write(body)
+			if err != nil {
+				fmt.Println("回传地址给localAgent失败:", err.Error())
+			}
+			return
+		}
+
 		// 写回给localAgent
 		dataForLocalAgent["address"] = s.ClientPool[uuid].Address   // rosAgent的公网地址
 		dataForLocalAgent["privAddr"] = s.ClientPool[uuid].PrivAddr // rosAgent的局域网地址

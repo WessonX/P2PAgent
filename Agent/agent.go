@@ -158,7 +158,7 @@ func (s *Agent) RequestForAddr(uuid string) error {
 }
 
 // WaitNotify 等待远程服务器发送通知告知我们另一个用户的ipv6地址，公网IP和局域网IP
-func (s *Agent) WaitNotify() (pubAddr string, privAddr string, ipv6Addr string) {
+func (s *Agent) WaitNotify() (pubAddr string, privAddr string, ipv6Addr string, error string) {
 	buffer := make([]byte, 1024)
 	n, err := s.ServerConn.Read(buffer)
 	if err != nil {
@@ -169,7 +169,7 @@ func (s *Agent) WaitNotify() (pubAddr string, privAddr string, ipv6Addr string) 
 		panic("获取用户信息失败" + err.Error())
 	}
 
-	return data["address"], data["privAddr"], data["ipv6Addr"]
+	return data["address"], data["privAddr"], data["ipv6Addr"], data["error"]
 }
 
 // DailP2P 连接对方临时的公网地址,并且不停的发送数据

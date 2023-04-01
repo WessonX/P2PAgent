@@ -174,7 +174,13 @@ func main() {
 		}
 
 		// 等待服务器回传对端节点的信息
-		remotePubAddr, remotePrivAddr, remoteIpv6Addr := localAgent.WaitNotify()
+		remotePubAddr, remotePrivAddr, remoteIpv6Addr, errStr := localAgent.WaitNotify()
+
+		// 错误处理
+		if errStr != "" && errStr == "1" {
+			NotifyStatus("Invalid robotID")
+			continue
+		}
 		fmt.Println("对端的公网地址:", remotePubAddr, " 对端的局域网地址:", remotePrivAddr, " 对端的ipv6地址:", remoteIpv6Addr)
 
 		// 在尝试连接之前，先关掉可能的已有连接，防止端口占用

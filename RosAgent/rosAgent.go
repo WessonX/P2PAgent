@@ -93,7 +93,10 @@ func main() {
 
 	// 等待服务器回传对端节点的信息
 	for {
-		remotePubAddr, remotePrivAddr, remoteIpv6Addr := rosAgent.WaitNotify()
+		remotePubAddr, remotePrivAddr, remoteIpv6Addr, errStr := rosAgent.WaitNotify()
+		if errStr != "" {
+			continue
+		}
 		fmt.Println("对端的公网地址:", remotePubAddr, " 对端的局域网地址:", remotePrivAddr, " 对端的ipv6地址:", remoteIpv6Addr)
 
 		// 分别尝试连接对端的局域网地址、ipv6地址、公网地址
