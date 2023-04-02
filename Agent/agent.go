@@ -249,6 +249,13 @@ func (s *Agent) P2PRead() {
 		//等于0，说明之前的包已经读完，将要读的是一个新的包
 		if s.Remain_cnt == 0 {
 			// 读取前18个字节，获取包头
+
+			// 可能存在的情况是包头也不完整，也就是buffer不够18个字节，则暂不往下处理，继续read数据
+			if len(buffer) < 18 {
+				needReadMore = true
+				continue
+			}
+
 			data_head := string(buffer[:18])
 
 			// 解析出长度

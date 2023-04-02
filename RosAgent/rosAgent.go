@@ -35,12 +35,11 @@ func (s *RosHandler) rosRead() {
 		// 将包头和数据主体拼接
 		body := string(msg)
 		content := data_head + body
-
 		// 将读取到的内容，回传给p2p节点
 		if rosAgent.P2PConn != nil {
-			writeCnt, error := rosAgent.P2PConn.Write([]byte(content))
+			writeCnt, err := rosAgent.P2PConn.Write([]byte(content))
 			if err != nil {
-				panic("消息转发给对端节点失败" + error.Error())
+				panic("消息转发给对端节点失败" + err.Error())
 			}
 			fmt.Println("消息转发给对端节点成功,大小:", writeCnt)
 		}

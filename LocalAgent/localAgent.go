@@ -93,8 +93,6 @@ func dataHandler(w http.ResponseWriter, r *http.Request) {
 			// 将包头和数据主体拼接
 			body := string(msg)
 			content := data_head + body
-
-			fmt.Println(content)
 			// 将消息转发给对端节点
 			writeCnt, err := localAgent.P2PConn.Write([]byte(content))
 			if err != nil {
