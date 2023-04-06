@@ -24,6 +24,10 @@ func (s *RosHandler) rosRead() {
 	for {
 		_, msg, err := s.RosConn.ReadMessage()
 		if err != nil {
+			// 如果和ros_server的连接中断了，则同时断开p2p连接
+			if err.Error() == "EOF" {
+				rosAgent.P2PConn.Close()
+			}
 			return
 		}
 		cnt := len(msg)
