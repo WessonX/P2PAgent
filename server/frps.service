@@ -1,7 +1,7 @@
 [Unit]
 Description=frps service
 After=network.target syslog.target
-Wants=network.target
+Wants=network.target network-online.target
 [Service]
 Type=simple
 ExecStart=/opt/frp/frps -c /opt/frp/frps.ini

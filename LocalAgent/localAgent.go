@@ -10,6 +10,7 @@ import (
 	"time"
 
 	agent "P2PAgent/Agent"
+	common "P2PAgent/Common"
 
 	"github.com/gorilla/websocket"
 )
@@ -47,7 +48,8 @@ var upgrader = websocket.Upgrader{
 func controlHandler(w http.ResponseWriter, r *http.Request) {
 	conn, error := upgrader.Upgrade(w, r, nil)
 	if error != nil {
-		panic("websocket请求建立失败:" + error.Error())
+		fmt.Println("websocket请求建立失败:" + error.Error())
+		return
 	}
 	controlConn = conn
 	fmt.Println("websocket控制连接建立成功")
@@ -70,7 +72,8 @@ func controlHandler(w http.ResponseWriter, r *http.Request) {
 func dataHandler(w http.ResponseWriter, r *http.Request) {
 	conn, error := upgrader.Upgrade(w, r, nil)
 	if error != nil {
-		panic("websocket请求建立失败:" + error.Error())
+		fmt.Println("websocket请求建立失败:" + error.Error())
+		return
 	}
 	dataConn = conn
 
@@ -96,7 +99,8 @@ func dataHandler(w http.ResponseWriter, r *http.Request) {
 			// 将消息转发给对端节点
 			writeCnt, err := localAgent.P2PConn.Write([]byte(content))
 			if err != nil {
-				panic("消息转发给对端节点失败" + err.Error())
+				fmt.Println("消息转发给对端节点失败" + err.Error())
+				break
 			}
 			fmt.Println("消息转发给对端节点,大小:", writeCnt)
 		}
@@ -151,7 +155,7 @@ func main() {
 	// 连接服务器
 	var err error
 	for {
-		err = localAgent.ConnectToRelay("47.112.96.50:3001")
+		err = localAgent.ConnectToRelay(common.Relay_addr)
 		if err != nil {
 			time.Sleep(2 * time.Second)
 			continue

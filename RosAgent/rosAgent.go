@@ -2,6 +2,7 @@ package main
 
 import (
 	agent "P2PAgent/Agent"
+	common "P2PAgent/Common"
 	"fmt"
 	"time"
 
@@ -86,7 +87,7 @@ func main() {
 	*/
 	// 连接中继服务器
 	for {
-		err = rosAgent.ConnectToRelay("47.112.96.50:3001")
+		err = rosAgent.ConnectToRelay(common.Relay_addr)
 		if err != nil {
 			time.Sleep(1 * time.Second)
 			continue
