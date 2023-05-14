@@ -114,7 +114,8 @@ func NotifyStatus(status string) {
 	body, _ := json.Marshal(data)
 	err := controlConn.WriteMessage(websocket.TextMessage, body)
 	if err != nil {
-		panic("fail:" + err.Error())
+		fmt.Println("fail:" + err.Error())
+		return
 	}
 	fmt.Println("成功通知浏览器，p2p连接状态:", status)
 }

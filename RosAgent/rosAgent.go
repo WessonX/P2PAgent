@@ -44,7 +44,8 @@ func (s *RosHandler) rosRead() {
 		if rosAgent.P2PConn != nil {
 			writeCnt, err := rosAgent.P2PConn.Write([]byte(content))
 			if err != nil {
-				panic("消息转发给对端节点失败" + err.Error())
+				fmt.Println("消息转发给对端节点失败" + err.Error())
+				continue
 			}
 			fmt.Println("消息转发给对端节点成功,大小:", writeCnt)
 		}
