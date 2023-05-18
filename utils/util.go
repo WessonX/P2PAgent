@@ -75,6 +75,9 @@ func IsIpv4OrIpv6(ip string) IPType {
 	if len(ip) < 7 {
 		return ILLEGAL
 	}
+	if ip[0] == '[' && ip[len(ip)-1] == ']' {
+		ip = ip[1 : len(ip)-1]
+	}
 	arrIpv4 := strings.Split(ip, ".")
 	if len(arrIpv4) == 4 {
 		// 判断IPv4

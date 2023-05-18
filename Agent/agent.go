@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -174,24 +175,47 @@ func (s *Agent) WaitNotify() (pubAddr string, privAddr string, ipv6Addr string, 
 
 // DailP2P 连接对方临时的公网地址,并且不停的发送数据
 func (s *Agent) DailP2P(address string) bool {
+	if address == "" {
+		return false
+	}
 	var errCount = 1
 	var conn net.Conn
 	var err error
+	// 获取address的类型，是ipv4的还是ipv6
+	lastIndex := strings.LastIndex(address, ":")
+	var ipType = utils.IsIpv4OrIpv6(address[:lastIndex])
+	var localAddr string
+	if ipType == utils.IPV4 {
+		localAddr = "0.0.0.0"
+	} else {
+		localAddr = s.Ipv6Addr // 因为前面发送给中继服务器记录的就是这个地址，所以通信时也要用这个，用[::]无法保证一样
+	}
+
 	for {
-		// 重试三次
-		if errCount > 3 {
+		// 重试四次
+		if errCount > 4 {
 			break
 		}
 
 		d := net.Dialer{
 			Timeout: 10 * time.Second,
 			LocalAddr: &net.TCPAddr{
-				IP:   net.ParseIP("0.0.0.0"),
+				IP:   net.ParseIP(localAddr),
 				Port: s.LocalPort,
 			},
 			Control: Control,
 		}
-		conn, err = d.Dial("tcp", address)
+
+		// 如果是ipv6地址
+		if ipType == utils.IPV6 {
+			conn, err = d.Dial("tcp6", address)
+		} else if ipType == utils.IPV4 {
+			// 如果是ipv4地址
+			conn, err = d.Dial("tcp", address)
+		} else {
+			fmt.Println("地址无效")
+			return false
+		}
 		if err != nil {
 			fmt.Println("请求第", errCount, "次地址失败,用户地址:", address, "error:", err.Error())
 			errCount++

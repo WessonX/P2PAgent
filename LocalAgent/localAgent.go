@@ -121,7 +121,8 @@ func NotifyStatus(status string) {
 }
 
 func init() {
-	localPort := randPort(10000, 50000)
+	// localPort := randPort(10000, 50000)
+	localPort := 3003
 	localAgent.InitAgent(int(localPort))
 
 	// 初始化存储对端uuid的通道
@@ -193,7 +194,6 @@ func main() {
 
 		// 分别尝试连接对端的局域网地址、ipv6地址、公网地址
 		isSuccess = localAgent.DailP2P(remotePrivAddr) || localAgent.DailP2P(remoteIpv6Addr) || localAgent.DailP2P(remotePubAddr)
-
 		// 通知浏览器，是否成功建立p2p连接
 		if !isSuccess {
 			fmt.Println("p2p连接失败")

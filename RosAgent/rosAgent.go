@@ -106,7 +106,6 @@ func main() {
 
 		// 分别尝试连接对端的局域网地址、ipv6地址、公网地址
 		isSuccess := rosAgent.DailP2P(remotePrivAddr) || rosAgent.DailP2P(remoteIpv6Addr) || rosAgent.DailP2P(remotePubAddr)
-
 		// 若失败，则断开与ros_server的连接；浏览器会直接通过frp连接ros_server
 		if !isSuccess {
 			fmt.Println("p2p直连失败")
