@@ -4,6 +4,7 @@ After=network.target syslog.target
 Wants=network.target network-online.target
 [Service]
 Type=simple
-ExecStart=/opt/frp/frps -c /opt/frp/frps.ini
+ExecStart=./frps -c ./frps.ini
+WorkingDirectory=/home/pi/P2PAgent/frp    
 [Install]
 WantedBy=multi-user.target

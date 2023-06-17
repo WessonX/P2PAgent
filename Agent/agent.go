@@ -51,7 +51,7 @@ func (agent *Agent) InitAgent(port int) {
 	agent.Remain_cnt = 0
 
 	// 获取局域网地址
-	agent.PrivAddr = utils.GetPrivAddr()
+	agent.PrivAddr, _ = utils.GetPrivAddr()
 
 	// 获取本机的ipv6地址
 	agent.Ipv6Addr = utils.GetIPV6Addr()

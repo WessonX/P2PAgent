@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strconv"
 	"strings"
 )
@@ -115,23 +114,6 @@ func SaveUUID(uuid string) {
 	write.Flush()
 }
 
-// 获取当前的goroutine的id
-func GetGoid() int64 {
-	var (
-		buf [64]byte
-		n   = runtime.Stack(buf[:], false)
-		stk = strings.TrimPrefix(string(buf[:n]), "goroutine")
-	)
-
-	idField := strings.Fields(stk)[0]
-	id, err := strconv.Atoi(idField)
-	if err != nil {
-		panic(fmt.Errorf("can not get goroutine id: %v", err))
-	}
-
-	return int64(id)
-}
-
 // 获取本机的ipv6地址
 func GetIPV6Addr() string {
 	s, err := net.InterfaceAddrs()
@@ -148,18 +130,15 @@ func GetIPV6Addr() string {
 }
 
 // 获取本机的局域网地址
-func GetPrivAddr() string {
-	addrs, _ := net.InterfaceAddrs()
-	for _, addr := range addrs {
-		// 检查ip地址判断是否回环地址
-		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-			if ipnet.IP.To4() != nil {
-				privAddr := ipnet.IP.String()
-				return privAddr
-			}
-		}
+func GetPrivAddr() (ip string, err error) {
+	conn, err := net.Dial("udp", "8.8.8.8:53") //8.8.8.8是Google提供的免费DNS服务器的IP地址
+	if err != nil {
+		fmt.Println(err)
+		return
 	}
-	return ""
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	ip = strings.Split(localAddr.String(), ":")[0]
+	return
 }
 
 // 获取当前所在目录的路径

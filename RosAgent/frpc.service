@@ -6,6 +6,7 @@ Wants=network.target network-online.target
 Type=simple
 Restart=on-failure
 RestartSec=5s
-ExecStart=/opt/frp/frpc -c /opt/frp/frpc.ini
+ExecStart=./frpc -c ./frpc.ini
+WorkingDirectory=/home/pi/P2PAgent/frp    
 [Install]
 WantedBy=multi-user.target
