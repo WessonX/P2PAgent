@@ -54,7 +54,7 @@ func (agent *Agent) InitAgent(port int) {
 	agent.PrivAddr, _ = utils.GetPrivAddr()
 
 	// 获取本机的ipv6地址
-	agent.Ipv6Addr = utils.GetIPV6Addr()
+	agent.Ipv6Addr, _ = utils.GetIPV6Addr()
 
 	//读取uuid文件
 	filePath := utils.GetAppPath() + "/uuid.txt"

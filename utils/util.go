@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 )
@@ -115,18 +114,16 @@ func SaveUUID(uuid string) {
 }
 
 // 获取本机的ipv6地址
-func GetIPV6Addr() string {
-	s, err := net.InterfaceAddrs()
+func GetIPV6Addr() (ip string, err error) {
+	conn, err := net.Dial("udp6", "[2001:4860:4860::8888]:53") //2001:4860:4860::8888是Google提供的免费DNS服务器的IPV6地址
 	if err != nil {
-		return ""
+		fmt.Println(err)
+		ip = ""
+		return
 	}
-	for _, a := range s {
-		i := regexp.MustCompile(`(\w+:){7}\w+`).FindString(a.String())
-		if strings.Count(i, ":") == 7 {
-			return i
-		}
-	}
-	return ""
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	ip = strings.Split(localAddr.String(), "]")[0][1:]
+	return
 }
 
 // 获取本机的局域网地址
